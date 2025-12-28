@@ -174,6 +174,35 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push('- Walls (#) are impassable')
   parts.push('')
 
+  // Example sequence
+  parts.push('## Example: Collecting a Key and Opening a Door')
+  parts.push('')
+  parts.push('Initial state: `#@r.D.G#`')
+  parts.push('(Wall, Player, red key, empty, red Door closed, empty, Goal, Wall)')
+  parts.push('')
+  parts.push('Solution sequence:')
+  parts.push('1. RIGHT - Player moves onto key, collects it: `#.@.D.G#` (inventory: RED)')
+  parts.push('2. RIGHT - Player moves to empty space: `#..@D.G#`')
+  parts.push('3. INTERACT - Player opens adjacent door using RED key: `#..@R.G#` (door now open)')
+  parts.push('4. RIGHT - Player moves through open door: `#...@.G#`')
+  parts.push('5. RIGHT - Player moves to empty space: `#....@G#`')
+  parts.push('6. RIGHT - Player reaches goal: `#.....@#` (WIN!)')
+  parts.push('')
+
+  // Trap example
+  parts.push('## Example: Neutralizing a Trap')
+  parts.push('')
+  parts.push('Initial state: `#.TO@.#`')
+  parts.push('(Wall, empty, Trap, Block, Player, empty, Wall)')
+  parts.push('')
+  parts.push('Solution sequence:')
+  parts.push('1. LEFT - Player pushes block onto trap, both disappear: `#..@..#`')
+  parts.push('')
+  parts.push(
+    'The block neutralizes the trap, clearing the path. Without the block, stepping on T would kill the player!',
+  )
+  parts.push('')
+
   // Current state representation
   if (options.asciiGrid) {
     parts.push('## Current State (ASCII Grid)')

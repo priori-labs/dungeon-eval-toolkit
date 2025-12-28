@@ -404,10 +404,10 @@ export function DungeonGame() {
       </div>
 
       {/* Center - Game Area */}
-      <div className="flex-1 flex flex-col items-center px-5 py-6 min-w-0">
+      <div className="flex-1 flex flex-col items-center px-5 py-4 min-w-0">
         {/* Tile palette for editing */}
         {isEditing && (
-          <div className="mb-4 p-4 bg-card rounded-lg border">
+          <div className="mb-3 px-3 py-2 bg-card/50 rounded-lg border">
             <TilePalette
               selectedTile={selectedTile}
               onSelectTile={setSelectedTile}

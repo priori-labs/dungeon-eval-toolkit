@@ -1,5 +1,5 @@
 /**
- * Tile palette for the level editor
+ * Compact tile palette for the level editor
  */
 
 import { TILE_CATEGORIES, TILE_EMOJIS, TILE_NAMES } from '@src/constants'
@@ -92,8 +92,10 @@ function TileButton({ tileType, isSelected, onClick }: TileButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`w-10 h-10 rounded flex items-center justify-center text-lg transition-all ${
-        isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : 'hover:scale-110'
+      className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
+        isSelected
+          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background scale-110'
+          : 'hover:scale-110'
       }`}
       style={{ backgroundColor: bgColor }}
       title={name}
@@ -112,12 +114,10 @@ export function TilePalette({
   const selectedTileType = addModeToTileType(selectedTile)
 
   return (
-    <div className="space-y-4">
-      {/* Player Start Button */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Player
-        </h4>
+    <div className="flex items-center gap-4 flex-wrap">
+      {/* Player Start */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Player</span>
         <button
           type="button"
           onClick={() => {
@@ -126,23 +126,23 @@ export function TilePalette({
               onSelectTile('player-start')
             }
           }}
-          className={`w-full h-10 rounded flex items-center justify-center gap-2 transition-all ${
+          className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
             isSettingPlayerStart
-              ? 'bg-yellow-500/20 text-yellow-500 ring-2 ring-yellow-500'
-              : 'bg-muted/50 hover:bg-muted text-muted-foreground'
+              ? 'bg-yellow-500/30 text-yellow-400 ring-2 ring-yellow-500 scale-110'
+              : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:scale-110'
           }`}
+          title="Set Player Start"
         >
-          <span className="text-lg">@</span>
-          <span className="text-sm">Set Start</span>
+          @
         </button>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Basic Tiles */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Basic
-        </h4>
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Basic</span>
+        <div className="flex gap-1">
           {TILE_CATEGORIES.basic.map((tileType) => (
             <TileButton
               key={tileType}
@@ -157,12 +157,12 @@ export function TilePalette({
         </div>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Keys */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Keys
-        </h4>
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Keys</span>
+        <div className="flex gap-1">
           {TILE_CATEGORIES.keys.map((tileType) => (
             <TileButton
               key={tileType}
@@ -177,12 +177,12 @@ export function TilePalette({
         </div>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Doors */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Doors
-        </h4>
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Doors</span>
+        <div className="flex gap-1">
           {TILE_CATEGORIES.doors.map((tileType) => (
             <TileButton
               key={tileType}
@@ -197,12 +197,12 @@ export function TilePalette({
         </div>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Objects */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Objects
-        </h4>
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Objects</span>
+        <div className="flex gap-1">
           {TILE_CATEGORIES.objects.map((tileType) => (
             <TileButton
               key={tileType}
@@ -217,12 +217,12 @@ export function TilePalette({
         </div>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Portals */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Portals
-        </h4>
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Portals</span>
+        <div className="flex gap-1">
           {TILE_CATEGORIES.portals.map((tileType) => (
             <TileButton
               key={tileType}
@@ -237,25 +237,25 @@ export function TilePalette({
         </div>
       </div>
 
+      <div className="w-px h-6 bg-border" />
+
       {/* Remove Tool */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-          Tools
-        </h4>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground uppercase">Erase</span>
         <button
           type="button"
           onClick={() => {
             onSetPlayerStart(false)
             onSelectTile('remove')
           }}
-          className={`w-full h-10 rounded flex items-center justify-center gap-2 transition-all ${
+          className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
             selectedTile === 'remove'
-              ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500'
-              : 'bg-muted/50 hover:bg-muted text-muted-foreground'
+              ? 'bg-red-500/30 text-red-400 ring-2 ring-red-500 scale-110'
+              : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:scale-110'
           }`}
+          title="Remove Tile"
         >
-          <span className="text-lg">X</span>
-          <span className="text-sm">Remove</span>
+          ✕
         </button>
       </div>
     </div>

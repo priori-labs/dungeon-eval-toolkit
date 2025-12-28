@@ -29,7 +29,7 @@
     --dungeon-wall: 222.2 84% 4.9%;
     --dungeon-floor: 0 0% 98%;
     --dungeon-goal: 158 68% 73%;
-    --dungeon-player: 50 100% 50%;
+    --dungeon-player: 210 100% 55%;
     --dungeon-block: 32 45% 60%;
     --dungeon-trap: 0 80% 65%;
     --dungeon-portal: 240 60% 80%;
@@ -72,7 +72,7 @@
     --dungeon-wall: 0 0% 20%;
     --dungeon-floor: 0 0% 10%;
     --dungeon-goal: 158 68% 50%;
-    --dungeon-player: 50 100% 50%;
+    --dungeon-player: 210 100% 55%;
     --dungeon-block: 32 45% 50%;
     --dungeon-trap: 0 70% 55%;
     --dungeon-portal: 240 50% 60%;
