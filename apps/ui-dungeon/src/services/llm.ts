@@ -1,7 +1,7 @@
 import { createOpenRouterClient } from '@sokoban-eval-toolkit/utils'
-import type { GameState, MoveDirection, PromptOptions, SessionMetrics } from '@src/types'
-import { generateMoveByMovePrompt, generateSokobanPrompt } from '@src/utils/promptGeneration'
-import { parseAIResponse } from '@src/utils/solutionValidator'
+import type { Action, GameState, PromptOptions, SessionMetrics } from '@src/types'
+import { generateDungeonPrompt, generateMoveByMovePrompt } from '@src/utils/promptGeneration'
+import { parseAIResponse } from '@src/utils/responseParser'
 
 function getApiKey(): string | undefined {
   return import.meta.env.VITE_OPENROUTER_API_KEY
@@ -13,7 +13,7 @@ export function hasOpenRouterApiKey(): boolean {
 }
 
 export interface LLMResponse {
-  moves: MoveDirection[]
+  moves: Action[]
   rawResponse: string
   /** Native reasoning from the model (e.g., DeepSeek R1 thinking output) */
   nativeReasoning?: string
@@ -27,9 +27,9 @@ export interface LLMResponse {
 }
 
 /**
- * Get a solution from the LLM for a Sokoban puzzle.
+ * Get a solution from the LLM for a dungeon puzzle.
  */
-export async function getSokobanSolution(
+export async function getDungeonSolution(
   state: GameState,
   model: string,
   options: PromptOptions,
@@ -43,7 +43,7 @@ export async function getSokobanSolution(
     }
     const client = createOpenRouterClient(apiKey)
 
-    const prompt = generateSokobanPrompt(state, options)
+    const prompt = generateDungeonPrompt(state, options)
 
     const response = await client.chat.completions.create({
       model,
@@ -124,8 +124,8 @@ export async function getNextMove(
     const usage = response.usage
 
     // Extract native reasoning from OpenRouter response (some models like DeepSeek provide this)
-    // @ts-expect-error - OpenRouter-specific field not in OpenAI types
-    const nativeReasoning = message?.reasoning as string | undefined
+    // biome-ignore lint/suspicious/noExplicitAny: OpenRouter-specific field not in OpenAI types
+    const nativeReasoning = (message as any)?.reasoning as string | undefined
 
     const parsed = parseAIResponse(content)
 
@@ -202,3 +202,6 @@ export function updateSessionMetrics(
     requestCount: metrics.requestCount + 1,
   }
 }
+
+// Legacy export for compatibility
+export const getSokobanSolution = getDungeonSolution

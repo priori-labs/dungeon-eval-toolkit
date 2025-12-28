@@ -19,21 +19,13 @@ import { OPENROUTER_MODELS } from '@sokoban-eval-toolkit/utils'
 import { AI_MOVE_DELAY } from '@src/constants'
 import {
   createSessionMetrics,
-  getSokobanSolution,
+  getDungeonSolution,
   hasOpenRouterApiKey,
   updateSessionMetrics,
 } from '@src/services/llm'
-import type {
-  GameState,
-  MoveDirection,
-  PlannedMove,
-  PromptOptions,
-  SessionMetrics,
-} from '@src/types'
-import { levelToAsciiWithCoords } from '@src/utils/levelParser'
-import { DEFAULT_PROMPT_OPTIONS, generateSokobanPrompt } from '@src/utils/promptGeneration'
-import { type SolutionResult, getSolution } from '@src/utils/solutionCache'
-import { movesToNotation } from '@src/utils/solutionValidator'
+import type { Action, GameState, PlannedMove, PromptOptions, SessionMetrics } from '@src/types'
+import { DEFAULT_PROMPT_OPTIONS, generateDungeonPrompt } from '@src/utils/promptGeneration'
+import { movesToNotation } from '@src/utils/responseParser'
 import { AlertCircle, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -41,12 +33,10 @@ import { SquareLoader } from './SquareLoader'
 
 interface AIPanelProps {
   state: GameState | null
-  onMove: (direction: MoveDirection) => boolean
+  onMove: (action: Action) => boolean
   onReset: () => void
   disabled?: boolean
   onInferenceTimeChange?: (timeMs: number | null) => void
-  isVariantRules?: boolean
-  isCustomPushingRules?: boolean
 }
 
 type PlannedMoveStatus = 'pending' | 'executing' | 'success' | 'failed'
@@ -63,24 +53,11 @@ export function AIPanel({
   onReset,
   disabled = false,
   onInferenceTimeChange,
-  isVariantRules = false,
-  isCustomPushingRules = false,
 }: AIPanelProps) {
   const [model, setModel] = useState(DEFAULT_MODEL)
   const [promptOptions, setPromptOptions] = useState<PromptOptions>({
     ...DEFAULT_PROMPT_OPTIONS,
-    variantRules: isVariantRules,
-    customPushingRules: isCustomPushingRules,
   })
-
-  // Sync variantRules and customPushingRules props with promptOptions
-  useEffect(() => {
-    setPromptOptions((prev) => ({
-      ...prev,
-      variantRules: isVariantRules,
-      customPushingRules: isCustomPushingRules,
-    }))
-  }, [isVariantRules, isCustomPushingRules])
 
   const [isRunning, setIsRunning] = useState(false)
   const [plannedMoves, setPlannedMoves] = useState<ExtendedPlannedMove[]>([])
@@ -94,15 +71,13 @@ export function AIPanel({
   const [copied, setCopied] = useState(false)
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
-  const [copiedReasoningContext, setCopiedReasoningContext] = useState(false)
   const [wasManuallyStopped, setWasManuallyStopped] = useState(false)
-  const [storedSolution, setStoredSolution] = useState<MoveDirection[]>([])
-  const [cachedSolution, setCachedSolution] = useState<SolutionResult | null>(null)
+  const [storedSolution, setStoredSolution] = useState<Action[]>([])
 
   const abortRef = useRef(false)
   const isRunningRef = useRef(false)
   const isReplayingRef = useRef(false)
-  const movesRef = useRef<MoveDirection[]>([])
+  const movesRef = useRef<Action[]>([])
   const moveIndexRef = useRef(0)
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
@@ -145,7 +120,6 @@ export function AIPanel({
       setInflightStartTime(null)
       setWasManuallyStopped(false)
       setStoredSolution([])
-      setCachedSolution(null)
       abortRef.current = true
       isRunningRef.current = false
       isReplayingRef.current = false
@@ -153,16 +127,6 @@ export function AIPanel({
       onInferenceTimeChange?.(null)
     }
   }, [levelId, onInferenceTimeChange])
-
-  // Load solution when level changes (cache first, then solver)
-  // Skip when variant rules are enabled (solver doesn't apply)
-  useEffect(() => {
-    if (!state?.level || isVariantRules) {
-      setCachedSolution(null)
-      return
-    }
-    getSolution(state.level).then(setCachedSolution)
-  }, [state?.level, isVariantRules])
 
   // Notify parent of inference time changes
   useEffect(() => {
@@ -235,7 +199,7 @@ export function AIPanel({
     setInflightStartTime(Date.now())
 
     // Get solution from LLM
-    const response = await getSokobanSolution(state, model, promptOptions)
+    const response = await getDungeonSolution(state, model, promptOptions)
 
     setInflightStartTime(null)
 
@@ -258,9 +222,9 @@ export function AIPanel({
     }
 
     // Create planned moves
-    const moves: ExtendedPlannedMove[] = response.moves.map((direction) => ({
+    const moves: ExtendedPlannedMove[] = response.moves.map((action) => ({
       id: uuidv4(),
-      direction,
+      action,
       status: 'pending' as PlannedMoveStatus,
     }))
     setPlannedMoves(moves)
@@ -320,9 +284,9 @@ export function AIPanel({
     setWasManuallyStopped(false)
 
     // Create fresh planned moves from stored solution
-    const moves: ExtendedPlannedMove[] = storedSolution.map((direction) => ({
+    const moves: ExtendedPlannedMove[] = storedSolution.map((action) => ({
       id: uuidv4(),
-      direction,
+      action,
       status: 'pending' as PlannedMoveStatus,
     }))
     setPlannedMoves(moves)
@@ -346,7 +310,7 @@ export function AIPanel({
   }
 
   // Generate preview prompt for copy
-  const previewPrompt = state ? generateSokobanPrompt(state, promptOptions) : null
+  const previewPrompt = state ? generateDungeonPrompt(state, promptOptions) : null
 
   const handleCopyPrompt = useCallback(async () => {
     if (!previewPrompt) return
@@ -381,173 +345,12 @@ export function AIPanel({
     }
   }, [parsedReasoning])
 
-  const generateReasoningContext = useCallback(() => {
-    if (!state) return null
-
-    const parts: string[] = []
-
-    // [INITIAL SOKOBAN PROBLEM]
-    parts.push('='.repeat(60))
-    parts.push('[INITIAL SOKOBAN PROBLEM]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    parts.push('Grid (ASCII representation):')
-    parts.push('```')
-    parts.push(levelToAsciiWithCoords(state.level))
-    parts.push('```')
-    parts.push('')
-    parts.push(
-      'Legend: # = Wall, @ = Player, $ = Box, . = Goal, * = Box on Goal, + = Player on Goal',
-    )
-    parts.push('')
-    parts.push(`Grid size: ${state.level.width}x${state.level.height}`)
-    parts.push(`Boxes: ${state.level.boxStarts.length}`)
-    parts.push(`Goals: ${state.level.goals.length}`)
-    parts.push('')
-
-    // [AI NATIVE REASONING]
-    parts.push('='.repeat(60))
-    parts.push('[AI NATIVE REASONING]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    if (nativeReasoning) {
-      parts.push(nativeReasoning)
-    } else {
-      parts.push('(No native reasoning output from model)')
-    }
-    parts.push('')
-
-    // [FULL AI RESPONSE]
-    parts.push('='.repeat(60))
-    parts.push('[FULL AI RESPONSE]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    if (parsedReasoning) {
-      parts.push('Response Reasoning:')
-      parts.push(parsedReasoning)
-      parts.push('')
-    }
-    if (storedSolution.length > 0) {
-      parts.push(`Proposed Moves (${storedSolution.length} total):`)
-      parts.push(storedSolution.join(', '))
-      parts.push('')
-      parts.push(`Sokoban Notation: ${movesToNotation(storedSolution)}`)
-    } else {
-      parts.push('(No moves parsed from response)')
-    }
-    if (rawResponse) {
-      parts.push('')
-      parts.push('Raw Response:')
-      parts.push(rawResponse)
-    }
-    parts.push('')
-
-    // [AI SOLUTION RESULT]
-    parts.push('='.repeat(60))
-    parts.push('[AI SOLUTION RESULT]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    const successfulMoves = plannedMoves.filter((m) => m.status === 'success').length
-    const failedMove = plannedMoves.find((m) => m.status === 'failed')
-
-    if (state.isWon) {
-      parts.push(`SUCCESS: Puzzle solved in ${successfulMoves} moves`)
-    } else if (failedMove) {
-      const failedIndex = plannedMoves.indexOf(failedMove)
-      parts.push(`FAILURE: Invalid move at step ${failedIndex + 1}`)
-      parts.push(`- Failed move: ${failedMove.direction}`)
-      parts.push(`- Successful moves before failure: ${successfulMoves}`)
-    } else if (plannedMoves.length > 0 && successfulMoves === plannedMoves.length) {
-      parts.push(`INCOMPLETE: All ${successfulMoves} moves executed but puzzle not solved`)
-    } else if (error) {
-      parts.push(`ERROR: ${error}`)
-    } else {
-      parts.push('No solution attempt recorded')
-    }
-    parts.push('')
-
-    // [ACTUAL PUZZLE SOLUTION]
-    parts.push('='.repeat(60))
-    parts.push('[ACTUAL PUZZLE SOLUTION]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    if (cachedSolution?.found) {
-      parts.push(`Shortest Solution: ${cachedSolution.moveCount} moves`)
-      parts.push(`Moves: ${cachedSolution.solution.join(', ')}`)
-      parts.push(`Sokoban Notation: ${movesToNotation(cachedSolution.solution)}`)
-      parts.push(
-        `Source: ${cachedSolution.source === 'cache' ? 'Pre-computed cache' : 'Runtime solver'}`,
-      )
-    } else if (cachedSolution?.hitLimit) {
-      parts.push('Solver hit exploration limit - solution may exist but could not be computed')
-    } else {
-      parts.push('Puzzle Unsolved')
-    }
-    parts.push('')
-
-    // [INSTRUCTIONS]
-    parts.push('='.repeat(60))
-    parts.push('[INSTRUCTIONS]')
-    parts.push('='.repeat(60))
-    parts.push('')
-    parts.push(
-      'Above you have a Sokoban puzzle challenge and the full response from an AI model attempting to solve it, including any reasoning output.',
-    )
-    parts.push('')
-    parts.push(
-      'Your job is to review the AI response and evaluate its reasoning. DO NOT try to solve the problem yourself.',
-    )
-    parts.push('')
-    parts.push('Your goal is to identify critical flaws in the AI reasoning, if any:')
-    parts.push("- Hallucinations (describing moves or positions that don't exist)")
-    parts.push('- Physics/game rule violations (pushing through walls, pulling boxes, etc.)')
-    parts.push('- Invalid logic or contradictions')
-    parts.push('- Invalid moves (moving into walls, pushing boxes into walls, etc.)')
-    parts.push('- Failure to identify deadlock situations')
-    parts.push('- Incorrect spatial reasoning')
-    parts.push('')
-    parts.push(
-      'The actual solution has been provided above. All puzzles presented ARE solvable (even if the AI concludes they are impossible).',
-    )
-    parts.push('')
-    parts.push("Review the AI's reasoning and rate it on a scale of 1 to 100:")
-    parts.push('- 1-20: Complete failure (nonsensical, major rule violations)')
-    parts.push('- 21-40: Poor (significant errors, failed to solve)')
-    parts.push('- 41-60: Mediocre (some correct reasoning but key mistakes)')
-    parts.push('- 61-80: Good (mostly correct, minor issues)')
-    parts.push('- 81-95: Excellent (solved correctly with sound reasoning)')
-    parts.push('- 96-100: Exceptional (optimal solution with insightful reasoning)')
-
-    return parts.join('\n')
-  }, [
-    state,
-    nativeReasoning,
-    parsedReasoning,
-    storedSolution,
-    rawResponse,
-    plannedMoves,
-    error,
-    cachedSolution,
-  ])
-
-  const handleCopyReasoningContext = useCallback(async () => {
-    const context = generateReasoningContext()
-    if (!context) return
-    try {
-      await navigator.clipboard.writeText(context)
-      setCopiedReasoningContext(true)
-      setTimeout(() => setCopiedReasoningContext(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }, [generateReasoningContext])
-
   // Computed states
   const aiHasRun = plannedMoves.length > 0
   const aiHasResponded = sessionMetrics.requestCount > 0
   const hasFailedMoves = plannedMoves.some((m) => m.status === 'failed')
-  const aiCompleted = aiHasRun && !isRunning && state?.isWon && !hasFailedMoves
-  const aiStopped = aiHasRun && !isRunning && (!state?.isWon || hasFailedMoves)
+  const aiCompleted = aiHasRun && !isRunning && state?.success && !hasFailedMoves
+  const aiStopped = aiHasRun && !isRunning && (!state?.success || hasFailedMoves)
 
   const getStatusIcon = (status: PlannedMoveStatus) => {
     switch (status) {
@@ -575,16 +378,18 @@ export function AIPanel({
     }
   }
 
-  const getDirectionArrow = (direction: MoveDirection) => {
-    switch (direction) {
+  const getActionDisplay = (action: Action) => {
+    switch (action) {
       case 'UP':
-        return '↑'
+        return '↑ UP'
       case 'DOWN':
-        return '↓'
+        return '↓ DOWN'
       case 'LEFT':
-        return '←'
+        return '← LEFT'
       case 'RIGHT':
-        return '→'
+        return '→ RIGHT'
+      case 'INTERACT':
+        return '⚡ INTERACT'
     }
   }
 
@@ -692,22 +497,6 @@ export function AIPanel({
                 ASCII Grid
               </Label>
             </div>
-            {/* Cipher Symbols option */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="cipherSymbols"
-                checked={promptOptions.cipherSymbols}
-                onCheckedChange={() => togglePromptOption('cipherSymbols')}
-                disabled={isRunning || plannedMoves.length > 0 || !promptOptions.asciiGrid}
-                className="h-3.5 w-3.5"
-              />
-              <Label
-                htmlFor="cipherSymbols"
-                className={`text-xs ${isRunning || plannedMoves.length > 0 || !promptOptions.asciiGrid ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
-              >
-                Cipher Symbols
-              </Label>
-            </div>
             {/* Coordinate Locations option */}
             <div className="flex items-center gap-2">
               <Checkbox
@@ -724,10 +513,6 @@ export function AIPanel({
                 Coordinate Locations
               </Label>
             </div>
-            {/* Coordinates and Notation Guide are always included */}
-            <div className="text-[10px] text-muted-foreground ml-5">
-              Coordinates + Notation Guide always included
-            </div>
           </div>
         </div>
         <Separator />
@@ -741,15 +526,6 @@ export function AIPanel({
               </Button>
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
-              </Button>
-              <Button
-                onClick={handleCopyReasoningContext}
-                variant="outline"
-                className="w-full"
-                size="sm"
-              >
-                <Copy className="h-3 w-3 mr-1.5" />
-                {copiedReasoningContext ? 'Copied!' : 'Copy Reasoning Context'}
               </Button>
             </>
           ) : aiStopped ? (
@@ -765,15 +541,6 @@ export function AIPanel({
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
               </Button>
-              <Button
-                onClick={handleCopyReasoningContext}
-                variant="outline"
-                className="w-full"
-                size="sm"
-              >
-                <Copy className="h-3 w-3 mr-1.5" />
-                {copiedReasoningContext ? 'Copied!' : 'Copy Reasoning Context'}
-              </Button>
             </>
           ) : isRunning ? (
             <Button onClick={handleStop} variant="outline" className="w-full" size="sm">
@@ -783,7 +550,7 @@ export function AIPanel({
             <>
               <Button
                 onClick={handleStart}
-                disabled={disabled || !state || !hasApiKey || state.isWon}
+                disabled={disabled || !state || !hasApiKey || state.success}
                 className="w-full"
                 size="sm"
               >
@@ -906,9 +673,7 @@ export function AIPanel({
                         className={`font-medium flex items-center gap-2 ${getStatusColor(move.status)}`}
                       >
                         <span className="w-6">{idx + 1}.</span>
-                        <span>
-                          {getDirectionArrow(move.direction)} {move.direction}
-                        </span>
+                        <span>{getActionDisplay(move.action)}</span>
                       </span>
                       <span className={`text-[10px] ${getStatusColor(move.status)}`}>
                         {getStatusIcon(move.status)}
@@ -920,6 +685,13 @@ export function AIPanel({
             </div>
           </div>
         </div>
+
+        {/* Solution notation */}
+        {storedSolution.length > 0 && (
+          <div className="text-[10px] text-muted-foreground font-mono">
+            Notation: {movesToNotation(storedSolution)}
+          </div>
+        )}
 
         {/* Raw response (collapsible) */}
         {rawResponse && (

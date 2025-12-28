@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { SokobanGame } from './SokobanGame'
+import { DungeonGame } from './DungeonGame'
 
 function App() {
   // Apply dark mode to document
@@ -7,7 +7,7 @@ function App() {
     document.documentElement.classList.add('dark')
   }, [])
 
-  return <SokobanGame />
+  return <DungeonGame />
 }
 
 export default App

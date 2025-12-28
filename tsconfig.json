@@ -8,7 +8,7 @@
     { "path": "./packages/[template]" },
     { "path": "./apps/server" },
     { "path": "./apps/web" },
-    { "path": "./apps/ui-sokoban" },
+    { "path": "./apps/ui-dungeon" },
     { "path": "./apps/[template]" },
     { "path": "./tooling/[template]" }
   ]
