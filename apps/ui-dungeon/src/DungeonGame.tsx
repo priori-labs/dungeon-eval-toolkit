@@ -7,7 +7,7 @@ import {
 import { ACTION_KEYS } from '@src/constants'
 import type { Action, DungeonLevel, GameState, TileType } from '@src/types'
 import { createGame, executeAction, resetGame, undoMove } from '@src/utils/gameEngine'
-import { createDemoLevel } from '@src/utils/levelStorage'
+import { createBlankLevel } from '@src/utils/levelStorage'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AIPanel } from './components/AIPanel'
 import { ControlPanel } from './components/ControlPanel'
@@ -19,6 +19,7 @@ export function DungeonGame() {
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [currentLevel, setCurrentLevel] = useState<DungeonLevel | null>(null)
   const [aiInferenceTimeMs, setAiInferenceTimeMs] = useState<number | null>(null)
+  const [aiPathHighlight, setAiPathHighlight] = useState<{ x: number; y: number }[] | null>(null)
   const initialLoadDone = useRef(false)
   const [isEditing, setIsEditing] = useState(true)
   const [selectedTile, setSelectedTile] = useState<AddMode>('wall')
@@ -32,12 +33,12 @@ export function DungeonGame() {
     setAiInferenceTimeMs(null)
   }, [])
 
-  // Load demo level on mount
+  // Load blank level on mount
   useEffect(() => {
     if (initialLoadDone.current) return
     initialLoadDone.current = true
 
-    const level = createDemoLevel()
+    const level = createBlankLevel(10, 8, 'New Level')
     handleLevelLoad(level)
   }, [handleLevelLoad])
 
@@ -241,99 +242,6 @@ export function DungeonGame() {
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp)
   }, [isDragging, handleDragEnd])
 
-  // Flip board
-  const handleFlipBoard = useCallback(() => {
-    if (!gameState) return
-
-    const { grid, level, playerPosition } = gameState
-    const { width, height } = level.gridSize
-
-    // Flip grid
-    const newGrid = grid.map((row, y) => row.map((_, x) => grid[height - 1 - y][width - 1 - x]))
-
-    // Flip layout
-    const newLayout = level.layout.map((row, y) =>
-      row.map((_, x) => level.layout[height - 1 - y][width - 1 - x]),
-    )
-
-    // Flip positions
-    const newPlayerPos = {
-      x: width - 1 - playerPosition.x,
-      y: height - 1 - playerPosition.y,
-    }
-    const newPlayerStart = {
-      x: width - 1 - level.playerStart.x,
-      y: height - 1 - level.playerStart.y,
-    }
-
-    const newLevel: DungeonLevel = {
-      ...level,
-      layout: newLayout,
-      playerStart: newPlayerStart,
-    }
-
-    setCurrentLevel(newLevel)
-    setGameState({
-      ...gameState,
-      level: newLevel,
-      grid: newGrid,
-      playerPosition: newPlayerPos,
-    })
-  }, [gameState])
-
-  // Rotate board
-  const handleRotateBoard = useCallback(() => {
-    if (!gameState) return
-
-    const { grid, level, playerPosition } = gameState
-    const { width, height } = level.gridSize
-
-    // Rotate 90 degrees clockwise
-    const newWidth = height
-    const newHeight = width
-
-    const newGrid = Array(newHeight)
-      .fill(null)
-      .map((_, newY) =>
-        Array(newWidth)
-          .fill(null)
-          .map((_, newX) => grid[height - 1 - newX][newY]),
-      )
-
-    const newLayout = Array(newHeight)
-      .fill(null)
-      .map((_, newY) =>
-        Array(newWidth)
-          .fill(null)
-          .map((_, newX) => level.layout[height - 1 - newX][newY]),
-      )
-
-    // Rotate positions
-    const rotatePos = (pos: { x: number; y: number }) => ({
-      x: height - 1 - pos.y,
-      y: pos.x,
-    })
-
-    const newPlayerPos = rotatePos(playerPosition)
-    const newPlayerStart = rotatePos(level.playerStart)
-
-    const newLevel: DungeonLevel = {
-      ...level,
-      gridSize: { width: newWidth, height: newHeight },
-      layout: newLayout,
-      playerStart: newPlayerStart,
-    }
-
-    setCurrentLevel(newLevel)
-    setGameState({
-      ...gameState,
-      level: newLevel,
-      gridSize: { width: newWidth, height: newHeight },
-      grid: newGrid,
-      playerPosition: newPlayerPos,
-    })
-  }, [gameState])
-
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -389,8 +297,6 @@ export function DungeonGame() {
               currentLevel={currentLevel}
               isEditing={isEditing}
               onEditingChange={setIsEditing}
-              onFlipBoard={handleFlipBoard}
-              onRotateBoard={handleRotateBoard}
             />
             <ControlPanel
               state={gameState}
@@ -437,12 +343,9 @@ export function DungeonGame() {
           )}
 
           {/* Status */}
-          {gameState && !gameState.done && (
+          {gameState && !gameState.done && gameState.inventory.keys.length > 0 && (
             <div className="text-xs text-muted-foreground mb-3">
-              Turn: {gameState.turn}/{gameState.maxTurns} | Keys:{' '}
-              {gameState.inventory.keys.length > 0
-                ? gameState.inventory.keys.map((k) => k[0]).join(', ')
-                : 'none'}
+              Keys: {gameState.inventory.keys.map((k) => k[0]).join(', ')}
             </div>
           )}
 
@@ -456,6 +359,7 @@ export function DungeonGame() {
             onCellDragEnter={handleDragEnter}
             onDragEnd={handleDragEnd}
             isDragging={isDragging}
+            highlightedCells={aiPathHighlight ?? undefined}
           />
 
           {/* Legend */}
@@ -484,7 +388,7 @@ export function DungeonGame() {
               <span>Block</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>⚠️</span>
+              <span>💀</span>
               <span>Trap</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -529,6 +433,7 @@ export function DungeonGame() {
           onReset={handleReset}
           disabled={!gameState}
           onInferenceTimeChange={setAiInferenceTimeMs}
+          onPathHighlight={setAiPathHighlight}
         />
       </div>
     </div>

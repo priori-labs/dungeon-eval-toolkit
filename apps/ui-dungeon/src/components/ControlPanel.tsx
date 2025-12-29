@@ -1,8 +1,16 @@
 import { Button } from '@sokoban-eval-toolkit/ui-library/components/button'
 import { Separator } from '@sokoban-eval-toolkit/ui-library/components/separator'
-import type { GameState } from '@src/types'
+import type { GameState, KeyColor } from '@src/types'
 import { RotateCcw, Undo2 } from 'lucide-react'
 import { useMemo } from 'react'
+
+// Key color mappings (matching the map tiles)
+const KEY_COLORS: Record<KeyColor, string> = {
+  RED: '#ffb3ba',
+  BLUE: '#bae1ff',
+  GREEN: '#baffc9',
+  YELLOW: '#ffffba',
+}
 
 interface ControlPanelProps {
   state: GameState | null
@@ -54,10 +62,8 @@ export function ControlPanel({
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-muted/30 rounded-md px-2 py-1.5">
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Turn</div>
-          <div className="text-sm font-semibold tabular-nums">
-            {state?.turn ?? 0}/{state?.maxTurns ?? 0}
-          </div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Moves</div>
+          <div className="text-sm font-semibold tabular-nums">{state?.turn ?? 0}</div>
         </div>
         <div className="bg-muted/30 rounded-md px-2 py-1.5">
           <div className="text-[9px] text-muted-foreground uppercase tracking-wide">
@@ -71,18 +77,17 @@ export function ControlPanel({
       {state && state.inventory.keys.length > 0 && (
         <div className="bg-muted/30 rounded-md px-2 py-1.5">
           <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Keys</div>
-          <div className="text-sm font-semibold">
-            {state.inventory.keys
-              .map((key) => {
-                const colorEmoji: Record<string, string> = {
-                  RED: '🔴',
-                  BLUE: '🔵',
-                  GREEN: '🟢',
-                  YELLOW: '🟡',
-                }
-                return colorEmoji[key] ?? '🔑'
-              })
-              .join(' ')}
+          <div className="flex gap-1.5 mt-1">
+            {state.inventory.keys.map((key, index) => (
+              <div
+                key={`${key}-${index}`}
+                className="w-6 h-6 rounded flex items-center justify-center text-xs"
+                style={{ backgroundColor: KEY_COLORS[key] }}
+                title={`${key.toLowerCase()} key`}
+              >
+                🔑
+              </div>
+            ))}
           </div>
         </div>
       )}

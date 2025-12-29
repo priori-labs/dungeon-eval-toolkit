@@ -36,6 +36,7 @@ interface AIPanelProps {
   onReset: () => void
   disabled?: boolean
   onInferenceTimeChange?: (timeMs: number | null) => void
+  onPathHighlight?: (positions: { x: number; y: number }[] | null) => void
 }
 
 type PlannedMoveStatus = 'pending' | 'executing' | 'success' | 'failed'
@@ -52,6 +53,7 @@ export function AIPanel({
   onReset,
   disabled = false,
   onInferenceTimeChange,
+  onPathHighlight,
 }: AIPanelProps) {
   const [model, setModel] = useState(DEFAULT_MODEL)
   const [promptOptions, setPromptOptions] = useState<PromptOptions>({
@@ -72,6 +74,7 @@ export function AIPanel({
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
   const [wasManuallyStopped, setWasManuallyStopped] = useState(false)
   const [storedSolution, setStoredSolution] = useState<Action[]>([])
+  const [showFullPath, setShowFullPath] = useState(false)
 
   const abortRef = useRef(false)
   const isRunningRef = useRef(false)
@@ -119,13 +122,15 @@ export function AIPanel({
       setInflightStartTime(null)
       setWasManuallyStopped(false)
       setStoredSolution([])
+      setShowFullPath(false)
       abortRef.current = true
       isRunningRef.current = false
       isReplayingRef.current = false
       setSessionMetrics(createSessionMetrics())
       onInferenceTimeChange?.(null)
+      onPathHighlight?.(null)
     }
-  }, [levelId, onInferenceTimeChange])
+  }, [levelId, onInferenceTimeChange, onPathHighlight])
 
   // Notify parent of inference time changes
   useEffect(() => {
@@ -133,6 +138,65 @@ export function AIPanel({
       onInferenceTimeChange?.(sessionMetrics.totalDurationMs)
     }
   }, [sessionMetrics.totalDurationMs, onInferenceTimeChange])
+
+  // Calculate and highlight full AI path when toggle is on
+  useEffect(() => {
+    if (!showFullPath || !state || storedSolution.length === 0) {
+      onPathHighlight?.(null)
+      return
+    }
+
+    // Calculate path positions by simulating all movement actions
+    const positions: { x: number; y: number }[] = []
+    let currentPos = { ...state.level.playerStart }
+    positions.push({ ...currentPos })
+
+    const directionDeltas: Record<string, { x: number; y: number }> = {
+      UP: { x: 0, y: -1 },
+      DOWN: { x: 0, y: 1 },
+      LEFT: { x: -1, y: 0 },
+      RIGHT: { x: 1, y: 0 },
+    }
+
+    // Helper to find the other portal
+    const findOtherPortal = (
+      portalType: string,
+    ): { x: number; y: number } | null => {
+      const targetType = portalType === 'PORTAL_A' ? 'PORTAL_B' : 'PORTAL_A'
+      for (let y = 0; y < state.level.gridSize.height; y++) {
+        for (let x = 0; x < state.level.gridSize.width; x++) {
+          if (state.level.layout[y]?.[x] === targetType) {
+            return { x, y }
+          }
+        }
+      }
+      return null
+    }
+
+    for (const action of storedSolution) {
+      const delta = directionDeltas[action]
+      if (delta) {
+        currentPos = {
+          x: currentPos.x + delta.x,
+          y: currentPos.y + delta.y,
+        }
+        positions.push({ ...currentPos })
+
+        // Check for portal teleportation
+        const tileType = state.level.layout[currentPos.y]?.[currentPos.x]
+        if (tileType === 'PORTAL_A' || tileType === 'PORTAL_B') {
+          const otherPortal = findOtherPortal(tileType)
+          if (otherPortal) {
+            currentPos = { ...otherPortal }
+            positions.push({ ...currentPos })
+          }
+        }
+      }
+      // INTERACT doesn't move, so we skip it
+    }
+
+    onPathHighlight?.(positions)
+  }, [showFullPath, state, storedSolution, onPathHighlight])
 
   // Execute moves one by one
   const executeNextMove = useCallback(() => {
@@ -262,9 +326,11 @@ export function AIPanel({
     setInflightStartTime(null)
     setWasManuallyStopped(false)
     setStoredSolution([])
+    setShowFullPath(false)
     setSessionMetrics(createSessionMetrics())
+    onPathHighlight?.(null)
     onReset()
-  }, [onReset])
+  }, [onReset, onPathHighlight])
 
   // Replay the stored AI solution from the beginning
   const handleReplay = useCallback(() => {
@@ -609,7 +675,22 @@ export function AIPanel({
 
         {/* Error display */}
         {error && (
-          <div className="bg-red-500/10 text-red-400 rounded-md px-3 py-2 text-xs">{error}</div>
+          <div className="space-y-2">
+            <div className="bg-red-500/10 text-red-400 rounded-md px-3 py-2 text-xs">{error}</div>
+            {storedSolution.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showFullPath"
+                  checked={showFullPath}
+                  onCheckedChange={(checked) => setShowFullPath(checked === true)}
+                  className="h-3.5 w-3.5"
+                />
+                <Label htmlFor="showFullPath" className="text-xs cursor-pointer">
+                  Show full AI path on grid
+                </Label>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Inflight timer */}

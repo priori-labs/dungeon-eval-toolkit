@@ -26,8 +26,8 @@ const TILE_COLORS: Record<string, string> = {
   DOOR_BLUE: '#9ac9ff',
   DOOR_GREEN: '#9affb3',
   DOOR_YELLOW: '#ffff9a',
-  BLOCK: '#d4a574',
-  TRAP: '#ffaaa5',
+  BLOCK: '#404040',
+  TRAP: '#404040',
   PORTAL_A: '#c7ceea',
   PORTAL_B: '#e2c7ea',
 }
@@ -92,9 +92,9 @@ function TileButton({ tileType, isSelected, onClick }: TileButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
+      className={`w-6 h-6 rounded flex items-center justify-center text-xs transition-all ${
         isSelected
-          ? 'ring-2 ring-primary ring-offset-1 ring-offset-background scale-110'
+          ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background scale-110'
           : 'hover:scale-110'
       }`}
       style={{ backgroundColor: bgColor }}
@@ -126,7 +126,7 @@ export function TilePalette({
               onSelectTile('player-start')
             }
           }}
-          className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
+          className={`w-6 h-6 rounded flex items-center justify-center text-xs transition-all ${
             isSettingPlayerStart
               ? 'bg-yellow-500/30 text-yellow-400 ring-2 ring-yellow-500 scale-110'
               : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:scale-110'
@@ -142,7 +142,7 @@ export function TilePalette({
       {/* Basic Tiles */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground uppercase">Basic</span>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {TILE_CATEGORIES.basic.map((tileType) => (
             <TileButton
               key={tileType}
@@ -162,7 +162,7 @@ export function TilePalette({
       {/* Keys */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground uppercase">Keys</span>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {TILE_CATEGORIES.keys.map((tileType) => (
             <TileButton
               key={tileType}
@@ -182,7 +182,7 @@ export function TilePalette({
       {/* Doors */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground uppercase">Doors</span>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {TILE_CATEGORIES.doors.map((tileType) => (
             <TileButton
               key={tileType}
@@ -202,7 +202,7 @@ export function TilePalette({
       {/* Objects */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground uppercase">Objects</span>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {TILE_CATEGORIES.objects.map((tileType) => (
             <TileButton
               key={tileType}
@@ -222,7 +222,7 @@ export function TilePalette({
       {/* Portals */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted-foreground uppercase">Portals</span>
-        <div className="flex gap-1">
+        <div className="flex gap-1.5">
           {TILE_CATEGORIES.portals.map((tileType) => (
             <TileButton
               key={tileType}
@@ -248,7 +248,7 @@ export function TilePalette({
             onSetPlayerStart(false)
             onSelectTile('remove')
           }}
-          className={`w-7 h-7 rounded flex items-center justify-center text-sm transition-all ${
+          className={`w-6 h-6 rounded flex items-center justify-center text-xs transition-all ${
             selectedTile === 'remove'
               ? 'bg-red-500/30 text-red-400 ring-2 ring-red-500 scale-110'
               : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:scale-110'

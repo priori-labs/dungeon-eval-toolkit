@@ -1,3 +1,4 @@
+import { Toaster } from '@sokoban-eval-toolkit/ui-library/components/sonner'
 import { useEffect } from 'react'
 import { DungeonGame } from './DungeonGame'
 
@@ -7,7 +8,12 @@ function App() {
     document.documentElement.classList.add('dark')
   }, [])
 
-  return <DungeonGame />
+  return (
+    <>
+      <DungeonGame />
+      <Toaster />
+    </>
+  )
 }
 
 export default App

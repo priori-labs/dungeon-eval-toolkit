@@ -48,8 +48,8 @@ const TILE_COLORS: Record<string, string> = {
   DOOR_BLUE: '#9ac9ff',
   DOOR_GREEN: '#9affb3',
   DOOR_YELLOW: '#ffff9a',
-  BLOCK: '#d4a574',
-  TRAP: '#ffaaa5',
+  BLOCK: 'hsl(var(--dungeon-floor))',
+  TRAP: 'hsl(var(--dungeon-floor))',
   PORTAL_A: '#c7ceea',
   PORTAL_B: '#e2c7ea',
 }
@@ -66,7 +66,7 @@ const TILE_EMOJIS: Partial<Record<TileType, string>> = {
   DOOR_GREEN: '🚪',
   DOOR_YELLOW: '🚪',
   BLOCK: '📦',
-  TRAP: '⚠️',
+  TRAP: '💀',
   PORTAL_A: '🌀',
   PORTAL_B: '🌀',
 }
@@ -96,13 +96,17 @@ export function DungeonGrid({
 
   const { grid, gridSize, playerPosition } = state
 
+  // Use smaller cells for large grids (over 20x20)
+  const isLargeGrid = gridSize.width > 20 || gridSize.height > 20
+  const cellSize = isLargeGrid ? 28 : CELL_SIZE
+
   const isHighlighted = (x: number, y: number) =>
     highlightedCells.some((c) => c.x === x && c.y === y)
 
   const isPlayer = (x: number, y: number) => playerPosition.x === x && playerPosition.y === y
 
-  const gridWidth = gridSize.width * CELL_SIZE
-  const gridHeight = gridSize.height * CELL_SIZE
+  const gridWidth = gridSize.width * cellSize
+  const gridHeight = gridSize.height * cellSize
 
   return (
     <div className={`inline-block rounded overflow-hidden animate-fade-in ${className}`}>
@@ -112,8 +116,8 @@ export function DungeonGrid({
           width: gridWidth,
           height: gridHeight,
           display: 'grid',
-          gridTemplateColumns: `repeat(${gridSize.width}, ${CELL_SIZE}px)`,
-          gridTemplateRows: `repeat(${gridSize.height}, ${CELL_SIZE}px)`,
+          gridTemplateColumns: `repeat(${gridSize.width}, ${cellSize}px)`,
+          gridTemplateRows: `repeat(${gridSize.height}, ${cellSize}px)`,
         }}
       >
         {grid.map((row, y) =>
@@ -144,7 +148,7 @@ export function DungeonGrid({
                 key={cellKey}
                 className={`relative transition-all duration-150 ${isEditing ? 'cursor-pointer hover:brightness-125' : ''} select-none outline-none`}
                 style={{
-                  backgroundColor: cellIsHighlighted ? 'hsl(var(--primary) / 0.2)' : bgColor,
+                  backgroundColor: bgColor,
                   cursor: canEdit ? 'crosshair' : undefined,
                 }}
                 onClick={isEditing ? () => onCellClick?.(x, y) : undefined}
@@ -174,7 +178,15 @@ export function DungeonGrid({
                 {/* Tile content (emoji) */}
                 {emoji && tileType !== 'WALL' && tileType !== 'EMPTY' && !cellIsPlayer && (
                   <div
-                    className="absolute inset-0 flex items-center justify-center text-lg"
+                    className={`absolute inset-0 flex items-center justify-center ${
+                      tileType === 'BLOCK' || tileType === 'TRAP'
+                        ? isLargeGrid
+                          ? 'text-lg'
+                          : 'text-2xl'
+                        : isLargeGrid
+                          ? 'text-sm'
+                          : 'text-lg'
+                    } ${tileType === 'TRAP' ? 'border border-orange-400' : ''}`}
                     style={{
                       opacity: tileType.startsWith('DOOR_') && tile.isOpen ? 0.3 : 1,
                     }}
@@ -189,13 +201,13 @@ export function DungeonGrid({
                   <div
                     className="absolute rounded-full flex items-center justify-center shadow-lg"
                     style={{
-                      inset: 4,
+                      inset: isLargeGrid ? 3 : 4,
                       backgroundColor: 'hsl(var(--dungeon-player))',
-                      border: '3px solid hsl(var(--dungeon-player) / 0.5)',
+                      border: `${isLargeGrid ? 2 : 3}px solid hsl(var(--dungeon-player) / 0.5)`,
                     }}
                   >
                     <div
-                      className="w-2 h-2 rounded-full"
+                      className={`${isLargeGrid ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full`}
                       style={{ backgroundColor: 'hsl(var(--dungeon-player) / 0.3)' }}
                     />
                   </div>
@@ -209,14 +221,24 @@ export function DungeonGrid({
                     <div
                       className="absolute rounded-full border-2 border-dashed flex items-center justify-center"
                       style={{
-                        inset: 6,
+                        inset: isLargeGrid ? 4 : 6,
                         borderColor: 'hsl(var(--dungeon-player))',
                         opacity: 0.5,
                       }}
                     >
-                      <span className="text-xs">P</span>
+                      <span className={isLargeGrid ? 'text-[10px]' : 'text-xs'}>P</span>
                     </div>
                   )}
+
+                {/* AI path highlight overlay */}
+                {cellIsHighlighted && (
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundColor: 'rgba(251, 191, 36, 0.35)',
+                    }}
+                  />
+                )}
               </div>
             )
           }),

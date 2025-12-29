@@ -2,18 +2,18 @@ import { Button } from '@sokoban-eval-toolkit/ui-library/components/button'
 import { Input } from '@sokoban-eval-toolkit/ui-library/components/input'
 import { Label } from '@sokoban-eval-toolkit/ui-library/components/label'
 import { Separator } from '@sokoban-eval-toolkit/ui-library/components/separator'
+import { toast } from '@sokoban-eval-toolkit/ui-library/components/sonner'
 import { Switch } from '@sokoban-eval-toolkit/ui-library/components/switch'
 import type { DungeonLevel } from '@src/types'
 import {
   createBlankLevel,
-  createDemoLevel,
   deleteLevel,
   exportAllToJSON,
   getSavedLevels,
   importFromJSON,
   saveLevel,
 } from '@src/utils/levelStorage'
-import { Download, FlipVertical, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Plus, Trash2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface LevelSelectorProps {
@@ -21,8 +21,6 @@ interface LevelSelectorProps {
   currentLevel?: DungeonLevel | null
   isEditing?: boolean
   onEditingChange?: (editing: boolean) => void
-  onFlipBoard?: () => void
-  onRotateBoard?: () => void
 }
 
 export function LevelSelector({
@@ -30,13 +28,12 @@ export function LevelSelector({
   currentLevel,
   isEditing = false,
   onEditingChange,
-  onFlipBoard,
-  onRotateBoard,
 }: LevelSelectorProps) {
   const [savedLevels, setSavedLevels] = useState<DungeonLevel[]>([])
   const [newLevelWidth, setNewLevelWidth] = useState(10)
   const [newLevelHeight, setNewLevelHeight] = useState(8)
   const [levelName, setLevelName] = useState('')
+  const [savedLevelsOpen, setSavedLevelsOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load saved levels on mount
@@ -56,13 +53,6 @@ export function LevelSelector({
     setLevelName('New Level')
   }, [newLevelWidth, newLevelHeight, onLevelLoad])
 
-  // Load demo level
-  const handleLoadDemo = useCallback(() => {
-    const level = createDemoLevel()
-    onLevelLoad(level)
-    setLevelName(level.name)
-  }, [onLevelLoad])
-
   // Save current level
   const handleSave = useCallback(() => {
     if (!currentLevel) return
@@ -74,6 +64,7 @@ export function LevelSelector({
 
     saveLevel(levelToSave)
     refreshSavedLevels()
+    toast.success('Level saved')
   }, [currentLevel, levelName, refreshSavedLevels])
 
   // Load a saved level
@@ -164,8 +155,8 @@ export function LevelSelector({
       <div className="space-y-3">
         <h3 className="text-sm font-semibold">New Level</h3>
 
-        <div className="flex gap-2">
-          <div className="flex-1">
+        <div className="flex gap-2 items-end">
+          <div className="w-16">
             <Label htmlFor="width" className="text-xs text-muted-foreground">
               Width
             </Label>
@@ -179,7 +170,7 @@ export function LevelSelector({
               className="h-8"
             />
           </div>
-          <div className="flex-1">
+          <div className="w-16">
             <Label htmlFor="height" className="text-xs text-muted-foreground">
               Height
             </Label>
@@ -193,15 +184,9 @@ export function LevelSelector({
               className="h-8"
             />
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button onClick={handleNewLevel} size="sm" className="flex-1">
+          <Button onClick={handleNewLevel} size="sm" className="flex-1 h-8">
             <Plus className="w-4 h-4 mr-1" />
             New
-          </Button>
-          <Button onClick={handleLoadDemo} variant="outline" size="sm" className="flex-1">
-            Demo
           </Button>
         </div>
       </div>
@@ -228,27 +213,12 @@ export function LevelSelector({
             </div>
 
             <div className="text-xs text-muted-foreground">
-              {currentLevel.gridSize.width}x{currentLevel.gridSize.height} • Max turns:{' '}
-              {currentLevel.maxTurns}
+              {currentLevel.gridSize.width}x{currentLevel.gridSize.height}
             </div>
 
             <Button onClick={handleSave} size="sm" className="w-full" disabled={!levelName.trim()}>
               Save Level
             </Button>
-
-            {/* Transform buttons */}
-            {isEditing && (
-              <div className="flex gap-2">
-                <Button onClick={onFlipBoard} variant="outline" size="sm" className="flex-1">
-                  <FlipVertical className="w-4 h-4 mr-1" />
-                  Flip
-                </Button>
-                <Button onClick={onRotateBoard} variant="outline" size="sm" className="flex-1">
-                  <RotateCw className="w-4 h-4 mr-1" />
-                  Rotate
-                </Button>
-              </div>
-            )}
           </div>
 
           <Separator />
@@ -256,69 +226,84 @@ export function LevelSelector({
       )}
 
       {/* Saved Levels */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setSavedLevelsOpen(!savedLevelsOpen)}
+          className="flex items-center gap-1 w-full text-left"
+        >
+          {savedLevelsOpen ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
           <h3 className="text-sm font-semibold">Saved Levels</h3>
-          <div className="flex gap-1">
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              title="Import levels"
-            >
-              <Upload className="w-4 h-4" />
-            </Button>
-            <Button
-              onClick={handleExportAll}
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              title="Export all levels"
-              disabled={savedLevels.length === 0}
-            >
-              <Download className="w-4 h-4" />
-            </Button>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleImport}
-          />
-        </div>
+          <span className="text-xs text-muted-foreground ml-1">({savedLevels.length})</span>
+        </button>
 
-        {savedLevels.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No saved levels yet</p>
-        ) : (
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {savedLevels.map((level) => (
-              <div
-                key={level.id}
-                className="flex items-center gap-2 p-2 rounded bg-muted/50 hover:bg-muted"
+        {savedLevelsOpen && (
+          <>
+            <div className="flex gap-1 ml-5">
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                title="Import levels"
               >
-                <button
-                  type="button"
-                  onClick={() => handleLoadSaved(level)}
-                  className="flex-1 text-left text-sm truncate hover:underline"
-                >
-                  {level.name}
-                </button>
-                <span className="text-xs text-muted-foreground">
-                  {level.gridSize.width}x{level.gridSize.height}
-                </span>
-                <Button
-                  onClick={() => handleDelete(level.id)}
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
+                <Upload className="w-4 h-4" />
+              </Button>
+              <Button
+                onClick={handleExportAll}
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                title="Export all levels"
+                disabled={savedLevels.length === 0}
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImport}
+            />
+
+            {savedLevels.length === 0 ? (
+              <p className="text-xs text-muted-foreground ml-5">No saved levels yet</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto ml-5">
+                {savedLevels.map((level) => (
+                  <div
+                    key={level.id}
+                    className="flex items-center gap-2 p-2 rounded bg-muted/50 hover:bg-muted"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleLoadSaved(level)}
+                      className="flex-1 text-left text-sm truncate hover:underline"
+                    >
+                      {level.name}
+                    </button>
+                    <span className="text-xs text-muted-foreground">
+                      {level.gridSize.width}x{level.gridSize.height}
+                    </span>
+                    <Button
+                      onClick={() => handleDelete(level.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

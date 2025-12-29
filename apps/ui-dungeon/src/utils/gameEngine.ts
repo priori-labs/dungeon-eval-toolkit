@@ -139,14 +139,6 @@ export function executeAction(
     message = 'You stepped on a trap! Game over.'
   }
 
-  // Check if turn limit reached
-  if (newState.turn >= newState.maxTurns && !newState.done) {
-    newState.done = true
-    newState.success = false
-    newState.endTime = Date.now()
-    message = 'Turn limit reached! Game over.'
-  }
-
   newState.message = message
 
   // Create move record for undo

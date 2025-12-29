@@ -67,7 +67,7 @@ export const TILE_EMOJIS: Partial<Record<TileType, string>> = {
   DOOR_GREEN: '🚪',
   DOOR_YELLOW: '🚪',
   BLOCK: '📦',
-  TRAP: '⚠️',
+  TRAP: '💀',
   PORTAL_A: '🌀',
   PORTAL_B: '🌀',
 }

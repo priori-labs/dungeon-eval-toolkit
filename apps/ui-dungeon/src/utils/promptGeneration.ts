@@ -170,7 +170,6 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push('- **Blocks**: Can be pushed into empty spaces or onto traps')
   parts.push('- **Traps**: Deadly to player. Pushing a block onto a trap neutralizes both')
   parts.push('- **Portals**: Walking onto Portal A teleports you to Portal B, and vice versa')
-  parts.push(`- **Turn Limit**: You have ${state.maxTurns} turns maximum`)
   parts.push('- Walls (#) are impassable')
   parts.push('')
 
@@ -234,7 +233,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
 
   // Current inventory
   parts.push('## Current Status')
-  parts.push(`- Turn: ${state.turn}/${state.maxTurns}`)
+  parts.push(`- Moves made: ${state.turn}`)
   parts.push(
     `- Keys in inventory: ${state.inventory.keys.length > 0 ? state.inventory.keys.join(', ') : 'none'}`,
   )
@@ -295,11 +294,10 @@ export function generateMinimalPrompt(state: GameState): string {
   parts.push(gameStateToAscii(state))
   parts.push('```')
   parts.push('')
-  parts.push(`Turn ${state.turn}/${state.maxTurns}`)
   if (state.inventory.keys.length > 0) {
     parts.push(`Keys: ${state.inventory.keys.join(', ')}`)
+    parts.push('')
   }
-  parts.push('')
   parts.push('Reply with moves as a JSON array: ["UP", "DOWN", "LEFT", "RIGHT", "INTERACT", ...]')
 
   return parts.join('\n')
@@ -324,11 +322,10 @@ export function generateMoveByMovePrompt(state: GameState, moveHistory: string[]
     parts.push('')
   }
 
-  parts.push(`Turn: ${state.turn}/${state.maxTurns}`)
   if (state.inventory.keys.length > 0) {
     parts.push(`Keys: ${state.inventory.keys.join(', ')}`)
+    parts.push('')
   }
-  parts.push('')
   parts.push('Reply with ONE move: UP, DOWN, LEFT, RIGHT, or INTERACT')
 
   return parts.join('\n')
