@@ -25,7 +25,7 @@ function gameStateToAscii(state: GameState): string {
         continue
       }
 
-      line += tileToChar(tile.type, tile.isOpen)
+      line += tileToChar(tile.type)
     }
     lines.push(line)
   }
@@ -36,7 +36,7 @@ function gameStateToAscii(state: GameState): string {
 /**
  * Convert tile type to ASCII character
  */
-function tileToChar(type: TileType, isOpen?: boolean): string {
+function tileToChar(type: TileType): string {
   switch (type) {
     case 'WALL':
       return '#'
@@ -53,13 +53,13 @@ function tileToChar(type: TileType, isOpen?: boolean): string {
     case 'KEY_YELLOW':
       return 'y'
     case 'DOOR_RED':
-      return isOpen ? 'R' : 'D'
+      return 'D'
     case 'DOOR_BLUE':
-      return isOpen ? 'B' : 'E'
+      return 'E'
     case 'DOOR_GREEN':
-      return isOpen ? 'N' : 'F'
+      return 'F'
     case 'DOOR_YELLOW':
-      return isOpen ? 'Y' : 'H'
+      return 'H'
     case 'BLOCK':
       return 'O'
     case 'TRAP':
@@ -183,8 +183,10 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push('Solution sequence:')
   parts.push('1. RIGHT - Player moves onto key, collects it: `#.@.D.G#` (inventory: RED)')
   parts.push('2. RIGHT - Player moves to empty space: `#..@D.G#`')
-  parts.push('3. INTERACT - Player opens adjacent door using RED key: `#..@R.G#` (door now open)')
-  parts.push('4. RIGHT - Player moves through open door: `#...@.G#`')
+  parts.push(
+    '3. INTERACT - Player opens adjacent door using RED key: `#..@..G#` (door becomes empty)',
+  )
+  parts.push('4. RIGHT - Player moves where door was: `#...@.G#`')
   parts.push('5. RIGHT - Player moves to empty space: `#....@G#`')
   parts.push('6. RIGHT - Player reaches goal: `#.....@#` (WIN!)')
   parts.push('')
@@ -216,8 +218,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
     parts.push('- @ = Player')
     parts.push('- G = Goal (reach this to win)')
     parts.push('- r, b, g, y = Keys (red, blue, green, yellow)')
-    parts.push('- D, E, F, H = Closed doors (red, blue, green, yellow)')
-    parts.push('- R, B, N, Y = Open doors (red, blue, green, yellow)')
+    parts.push('- D, E, F, H = Doors (red, blue, green, yellow) - become empty when opened')
     parts.push('- O = Pushable block')
     parts.push('- T = Trap (deadly)')
     parts.push('- A, Z = Portals (A teleports to Z)')

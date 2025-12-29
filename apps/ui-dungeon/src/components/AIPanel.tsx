@@ -444,6 +444,39 @@ export function AIPanel({
             </div>
           </div>
         )}
+
+        {/* Human Calibrated Efficiency */}
+        {aiHasResponded && sessionMetrics.totalOutputTokens > 0 && (
+          <div className="rounded-md border px-2 py-1.5 text-xs">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+              Human Calibrated Efficiency
+            </div>
+            <div className="space-y-0.5 font-mono text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Output Tokens:</span>
+                <span>{sessionMetrics.totalOutputTokens.toLocaleString()}</span>
+              </div>
+              {sessionMetrics.totalReasoningTokens > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">↳ Reasoning:</span>
+                  <span>{sessionMetrics.totalReasoningTokens.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. Words:</span>
+                <span>{sessionMetrics.estimatedWords.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-primary">
+                <span>Human Time (250 wpm):</span>
+                <span>{formatDuration((sessionMetrics.estimatedWords / 250) * 60 * 1000)}</span>
+              </div>
+              <div className="flex justify-between text-primary">
+                <span>Human Time (1000 wpm):</span>
+                <span>{formatDuration((sessionMetrics.estimatedWords / 1000) * 60 * 1000)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0 flex flex-col gap-3 pt-0 overflow-y-auto">

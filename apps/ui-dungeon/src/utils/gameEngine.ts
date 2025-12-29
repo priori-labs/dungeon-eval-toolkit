@@ -337,7 +337,8 @@ function tryInteract(state: GameState): InteractResult {
     if (adjTile.type.startsWith('DOOR_') && !adjTile.isOpen) {
       const doorColor = adjTile.type.split('_')[1] as KeyColor
       if (state.inventory.keys.includes(doorColor)) {
-        adjTile.isOpen = true
+        // Door becomes empty tile when opened
+        state.grid[adjPos.y][adjPos.x] = { type: TileType.EMPTY }
         return {
           success: true,
           message: `Opened ${doorColor.toLowerCase()} door`,

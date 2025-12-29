@@ -21,6 +21,8 @@ export interface LLMResponse {
   parsedReasoning?: string
   inputTokens: number
   outputTokens: number
+  /** Reasoning tokens if reported separately (e.g., OpenAI o1/o3) - already included in outputTokens */
+  reasoningTokens: number
   cost: number
   durationMs: number
   error?: string
@@ -62,9 +64,23 @@ export async function getDungeonSolution(
 
     const parsed = parseAIResponse(content)
 
+    // Log full response data for debugging
+    console.log('[LLM Response]', {
+      model,
+      message,
+      usage,
+      // biome-ignore lint/suspicious/noExplicitAny: Inspect all provider-specific fields
+      usageDetails: (usage as any)?.output_tokens_details,
+      durationMs: Date.now() - startTime,
+    })
+
     // Estimate cost (rough approximation - OpenRouter provides actual cost in headers)
     const inputTokens = usage?.prompt_tokens ?? 0
+    // completion_tokens includes reasoning tokens per OpenRouter/OpenAI billing policy
     const outputTokens = usage?.completion_tokens ?? 0
+    // Extract reasoning tokens if available (OpenAI o1/o3 report this separately)
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const reasoningTokens = (usage as any)?.output_tokens_details?.reasoning_tokens ?? 0
     const cost = estimateCost(model, inputTokens, outputTokens)
 
     return {
@@ -74,17 +90,20 @@ export async function getDungeonSolution(
       parsedReasoning: parsed.reasoning,
       inputTokens,
       outputTokens,
+      reasoningTokens,
       cost,
       durationMs,
       error: parsed.error,
     }
   } catch (error) {
     const durationMs = Date.now() - startTime
+    console.error('[LLM Error]', error)
     return {
       moves: [],
       rawResponse: '',
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       cost: 0,
       durationMs,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -129,8 +148,20 @@ export async function getNextMove(
 
     const parsed = parseAIResponse(content)
 
+    // Log full response data for debugging
+    console.log('[LLM Response - Move]', {
+      model,
+      message,
+      usage,
+      // biome-ignore lint/suspicious/noExplicitAny: Inspect all provider-specific fields
+      usageDetails: (usage as any)?.output_tokens_details,
+      durationMs,
+    })
+
     const inputTokens = usage?.prompt_tokens ?? 0
     const outputTokens = usage?.completion_tokens ?? 0
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const reasoningTokens = (usage as any)?.output_tokens_details?.reasoning_tokens ?? 0
     const cost = estimateCost(model, inputTokens, outputTokens)
 
     return {
@@ -140,17 +171,20 @@ export async function getNextMove(
       parsedReasoning: parsed.reasoning,
       inputTokens,
       outputTokens,
+      reasoningTokens,
       cost,
       durationMs,
       error: parsed.error,
     }
   } catch (error) {
     const durationMs = Date.now() - startTime
+    console.error('[LLM Error - Move]', error)
     return {
       moves: [],
       rawResponse: '',
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
       cost: 0,
       durationMs,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -176,6 +210,9 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
   return (inputTokens * rate.input + outputTokens * rate.output) / 1000
 }
 
+/** Approximate words per token (average for English text) */
+const WORDS_PER_TOKEN = 0.75
+
 /**
  * Create initial session metrics.
  */
@@ -185,6 +222,9 @@ export function createSessionMetrics(): SessionMetrics {
     totalTokens: 0,
     totalDurationMs: 0,
     requestCount: 0,
+    totalOutputTokens: 0,
+    totalReasoningTokens: 0,
+    estimatedWords: 0,
   }
 }
 
@@ -195,11 +235,17 @@ export function updateSessionMetrics(
   metrics: SessionMetrics,
   response: LLMResponse,
 ): SessionMetrics {
+  // Estimate words from output tokens (includes reasoning tokens)
+  const estimatedWords = Math.round(response.outputTokens * WORDS_PER_TOKEN)
+
   return {
     totalCost: metrics.totalCost + response.cost,
     totalTokens: metrics.totalTokens + response.inputTokens + response.outputTokens,
     totalDurationMs: metrics.totalDurationMs + response.durationMs,
     requestCount: metrics.requestCount + 1,
+    totalOutputTokens: metrics.totalOutputTokens + response.outputTokens,
+    totalReasoningTokens: metrics.totalReasoningTokens + response.reasoningTokens,
+    estimatedWords: metrics.estimatedWords + estimatedWords,
   }
 }
 
