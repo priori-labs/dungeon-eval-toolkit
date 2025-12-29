@@ -25,7 +25,6 @@ import {
 } from '@src/services/llm'
 import type { Action, GameState, PlannedMove, PromptOptions, SessionMetrics } from '@src/types'
 import { DEFAULT_PROMPT_OPTIONS, generateDungeonPrompt } from '@src/utils/promptGeneration'
-import { movesToNotation } from '@src/utils/responseParser'
 import { AlertCircle, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -394,11 +393,15 @@ export function AIPanel({
   }
 
   const formatDuration = (ms: number) => {
-    const seconds = Math.round(ms / 1000)
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}m ${remainingSeconds}s`
+    const totalSeconds = Math.round(ms / 1000)
+    if (totalSeconds < 60) return `${totalSeconds}s`
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`
+    }
+    return `${minutes}m ${seconds}s`
   }
 
   const formatCost = (cost: number) => {
@@ -452,6 +455,10 @@ export function AIPanel({
               Human Calibrated Efficiency
             </div>
             <div className="space-y-0.5 font-mono text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Prompt Tokens:</span>
+                <span>{sessionMetrics.totalInputTokens.toLocaleString()}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Output Tokens:</span>
                 <span>{sessionMetrics.totalOutputTokens.toLocaleString()}</span>
@@ -568,9 +575,6 @@ export function AIPanel({
                   Replay AI Solution
                 </Button>
               )}
-              <Button onClick={handleStart} variant="secondary" className="w-full" size="sm">
-                Retry
-              </Button>
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
               </Button>
@@ -718,13 +722,6 @@ export function AIPanel({
             </div>
           </div>
         </div>
-
-        {/* Solution notation */}
-        {storedSolution.length > 0 && (
-          <div className="text-[10px] text-muted-foreground font-mono">
-            Notation: {movesToNotation(storedSolution)}
-          </div>
-        )}
 
         {/* Raw response (collapsible) */}
         {rawResponse && (

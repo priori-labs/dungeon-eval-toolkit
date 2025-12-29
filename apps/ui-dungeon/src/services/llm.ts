@@ -69,19 +69,18 @@ export async function getDungeonSolution(
       model,
       message,
       usage,
-      // biome-ignore lint/suspicious/noExplicitAny: Inspect all provider-specific fields
-      usageDetails: (usage as any)?.output_tokens_details,
       durationMs: Date.now() - startTime,
     })
 
-    // Estimate cost (rough approximation - OpenRouter provides actual cost in headers)
     const inputTokens = usage?.prompt_tokens ?? 0
-    // completion_tokens includes reasoning tokens per OpenRouter/OpenAI billing policy
     const outputTokens = usage?.completion_tokens ?? 0
-    // Extract reasoning tokens if available (OpenAI o1/o3 report this separately)
+    // Extract reasoning tokens from completion_tokens_details (OpenRouter/OpenAI format)
     // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
-    const reasoningTokens = (usage as any)?.output_tokens_details?.reasoning_tokens ?? 0
-    const cost = estimateCost(model, inputTokens, outputTokens)
+    const reasoningTokens = (usage as any)?.completion_tokens_details?.reasoning_tokens ?? 0
+    // Use actual cost from OpenRouter if available, otherwise estimate
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const actualCost = (usage as any)?.cost as number | undefined
+    const cost = actualCost ?? estimateCost(model, inputTokens, outputTokens)
 
     return {
       moves: parsed.moves,
@@ -153,16 +152,16 @@ export async function getNextMove(
       model,
       message,
       usage,
-      // biome-ignore lint/suspicious/noExplicitAny: Inspect all provider-specific fields
-      usageDetails: (usage as any)?.output_tokens_details,
       durationMs,
     })
 
     const inputTokens = usage?.prompt_tokens ?? 0
     const outputTokens = usage?.completion_tokens ?? 0
     // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
-    const reasoningTokens = (usage as any)?.output_tokens_details?.reasoning_tokens ?? 0
-    const cost = estimateCost(model, inputTokens, outputTokens)
+    const reasoningTokens = (usage as any)?.completion_tokens_details?.reasoning_tokens ?? 0
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const actualCost = (usage as any)?.cost as number | undefined
+    const cost = actualCost ?? estimateCost(model, inputTokens, outputTokens)
 
     return {
       moves: parsed.moves.slice(0, 1), // Only take first move
@@ -222,6 +221,7 @@ export function createSessionMetrics(): SessionMetrics {
     totalTokens: 0,
     totalDurationMs: 0,
     requestCount: 0,
+    totalInputTokens: 0,
     totalOutputTokens: 0,
     totalReasoningTokens: 0,
     estimatedWords: 0,
@@ -243,6 +243,7 @@ export function updateSessionMetrics(
     totalTokens: metrics.totalTokens + response.inputTokens + response.outputTokens,
     totalDurationMs: metrics.totalDurationMs + response.durationMs,
     requestCount: metrics.requestCount + 1,
+    totalInputTokens: metrics.totalInputTokens + response.inputTokens,
     totalOutputTokens: metrics.totalOutputTokens + response.outputTokens,
     totalReasoningTokens: metrics.totalReasoningTokens + response.reasoningTokens,
     estimatedWords: metrics.estimatedWords + estimatedWords,

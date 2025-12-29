@@ -129,6 +129,7 @@ export interface SessionMetrics {
   totalDurationMs: number
   requestCount: number
   // Human calibrated efficiency metrics
+  totalInputTokens: number
   totalOutputTokens: number
   totalReasoningTokens: number
   /** Estimated words from tokens (approx 0.75 words per token) */
