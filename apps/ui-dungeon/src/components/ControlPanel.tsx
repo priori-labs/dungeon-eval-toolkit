@@ -78,9 +78,9 @@ export function ControlPanel({
         <div className="bg-muted/30 rounded-md px-2 py-1.5">
           <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Keys</div>
           <div className="flex gap-1.5 mt-1">
-            {state.inventory.keys.map((key, index) => (
+            {state.inventory.keys.map((key) => (
               <div
-                key={`${key}-${index}`}
+                key={key}
                 className="w-6 h-6 rounded flex items-center justify-center text-xs"
                 style={{ backgroundColor: KEY_COLORS[key] }}
                 title={`${key.toLowerCase()} key`}

@@ -159,9 +159,7 @@ export function AIPanel({
     }
 
     // Helper to find the other portal
-    const findOtherPortal = (
-      portalType: string,
-    ): { x: number; y: number } | null => {
+    const findOtherPortal = (portalType: string): { x: number; y: number } | null => {
       const targetType = portalType === 'PORTAL_A' ? 'PORTAL_B' : 'PORTAL_A'
       for (let y = 0; y < state.level.gridSize.height; y++) {
         for (let x = 0; x < state.level.gridSize.width; x++) {
