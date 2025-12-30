@@ -12,13 +12,17 @@ export const DEFAULT_PROMPT_OPTIONS: PromptOptions = {
   addInstructions: false,
   addExamples: false,
   enableExploration: false,
+  enableSemanticSymbols: false,
 }
 
 /**
  * Convert tile type to obfuscated/symbolic character
  * These symbols are intentionally non-obvious to test AI reasoning
  */
-function tileToSymbol(type: TileType): string {
+function tileToSymbol(type: TileType, semantic = false): string {
+  if (semantic) {
+    return tileToSemanticSymbol(type)
+  }
   switch (type) {
     case 'WALL':
       return '#'
@@ -56,9 +60,50 @@ function tileToSymbol(type: TileType): string {
 }
 
 /**
+ * Convert tile type to semantic symbol
+ * Uses intuitive characters: uppercase = keys, lowercase = doors
+ */
+function tileToSemanticSymbol(type: TileType): string {
+  switch (type) {
+    case 'WALL':
+      return '#'
+    case 'EMPTY':
+      return '.'
+    case 'GOAL':
+      return 'G'
+    case 'KEY_RED':
+      return 'R'
+    case 'KEY_BLUE':
+      return 'B'
+    case 'KEY_GREEN':
+      return 'N' // N for greeN (G is taken by Goal)
+    case 'KEY_YELLOW':
+      return 'Y'
+    case 'DOOR_RED':
+      return 'r'
+    case 'DOOR_BLUE':
+      return 'b'
+    case 'DOOR_GREEN':
+      return 'n' // n for greeN
+    case 'DOOR_YELLOW':
+      return 'y'
+    case 'BLOCK':
+      return 'O' // Looks like a box
+    case 'TRAP':
+      return '!'
+    case 'PORTAL_A':
+      return '['
+    case 'PORTAL_B':
+      return ']'
+    default:
+      return '?'
+  }
+}
+
+/**
  * Convert game state to symbolic ASCII representation
  */
-export function gameStateToAscii(state: GameState): string {
+export function gameStateToAscii(state: GameState, semantic = false): string {
   const { grid, playerPosition, gridSize } = state
   const lines: string[] = []
 
@@ -76,7 +121,7 @@ export function gameStateToAscii(state: GameState): string {
         continue
       }
 
-      line += tileToSymbol(tile.type)
+      line += tileToSymbol(tile.type, semantic)
     }
     lines.push(line)
   }
@@ -90,110 +135,215 @@ export const gameStateToObfuscatedAscii = gameStateToAscii
 /**
  * Generate the few-shot gameplay examples section
  */
-function generateExamples(): string {
+function generateExamples(semantic = false): string {
   const parts: string[] = []
 
   parts.push('Gameplay Examples')
   parts.push('')
 
-  // Example 1: Pushing block onto trap
-  parts.push('[EXAMPLE 1]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#.^*@.#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('LEFT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#..@..#')
-  parts.push('')
+  if (semantic) {
+    // Semantic symbols: O=block, !=trap, R=red key, r=red door, B=blue key, b=blue door, []=portals, G=goal
 
-  // Example 2: Collecting a key and opening a door
-  parts.push('[EXAMPLE 2]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#@a.1..X#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('RIGHT RIGHT INTERACT RIGHT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#...@..X#')
-  parts.push('')
+    // Example 1: Pushing block onto trap
+    parts.push('[EXAMPLE 1]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#.!O@.#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('LEFT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#..@..#')
+    parts.push('')
 
-  // Example 3: Complex navigation
-  parts.push('[EXAMPLE 3]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('@.1..')
-  parts.push('.*#..')
-  parts.push('.a#..')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push(
-    'DOWN DOWN RIGHT LEFT UP UP RIGHT INTERACT LEFT DOWN DOWN RIGHT UP LEFT UP RIGHT RIGHT RIGHT',
-  )
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('...@*')
-  parts.push('..#..')
-  parts.push('..#..')
-  parts.push('')
+    // Example 2: Collecting a key and opening a door
+    parts.push('[EXAMPLE 2]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@R.r..G#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT INTERACT RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#...@..G#')
+    parts.push('')
 
-  // Example 4: Portal teleportation
-  parts.push('[EXAMPLE 4]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#@(..^.).#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('RIGHT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#.(..^.@.#')
-  parts.push('')
+    // Example 3: Complex navigation
+    parts.push('[EXAMPLE 3]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('@.r..')
+    parts.push('.O#..')
+    parts.push('.R#..')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push(
+      'DOWN DOWN RIGHT LEFT UP UP RIGHT INTERACT LEFT DOWN DOWN RIGHT UP LEFT UP RIGHT RIGHT RIGHT',
+    )
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('...@O')
+    parts.push('..#..')
+    parts.push('..#..')
+    parts.push('')
 
-  // Example 5: Key-door matching
-  parts.push('[EXAMPLE 5]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#@a.1.b.2.X#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('RIGHT RIGHT INTERACT RIGHT RIGHT RIGHT RIGHT INTERACT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#......@..X#')
-  parts.push('')
+    // Example 4: Portal teleportation
+    parts.push('[EXAMPLE 4]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@[..!.].#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#.[..!.@.#')
+    parts.push('')
 
-  // Example 6: Trap = GAMEOVER
-  parts.push('[EXAMPLE 6]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#@^...X#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('RIGHT RIGHT RIGHT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#.@...X#')
-  parts.push('GAMEOVER')
-  parts.push('')
+    // Example 5: Key-door matching
+    parts.push('[EXAMPLE 5]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@R.r.B.b.G#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT INTERACT RIGHT RIGHT RIGHT RIGHT INTERACT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#......@..G#')
+    parts.push('')
 
-  // Example 7: Goal = GAME COMPLETE
-  parts.push('[EXAMPLE 7]:')
-  parts.push('')
-  parts.push('Initial Board State:')
-  parts.push('#...@X#')
-  parts.push('')
-  parts.push('Move Input:')
-  parts.push('RIGHT')
-  parts.push('')
-  parts.push('New Board State:')
-  parts.push('#....@#')
-  parts.push('GAME COMPLETE')
-  parts.push('')
+    // Example 6: Trap = GAMEOVER
+    parts.push('[EXAMPLE 6]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@!...G#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#.@...G#')
+    parts.push('GAMEOVER')
+    parts.push('')
+
+    // Example 7: Goal = GAME COMPLETE
+    parts.push('[EXAMPLE 7]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#...@G#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#....@#')
+    parts.push('GAME COMPLETE')
+    parts.push('')
+  } else {
+    // Obfuscated symbols: *=block, ^=trap, a=red key, 1=red door, b=blue key, 2=blue door, ()=portals, X=goal
+
+    // Example 1: Pushing block onto trap
+    parts.push('[EXAMPLE 1]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#.^*@.#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('LEFT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#..@..#')
+    parts.push('')
+
+    // Example 2: Collecting a key and opening a door
+    parts.push('[EXAMPLE 2]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@a.1..X#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT INTERACT RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#...@..X#')
+    parts.push('')
+
+    // Example 3: Complex navigation
+    parts.push('[EXAMPLE 3]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('@.1..')
+    parts.push('.*#..')
+    parts.push('.a#..')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push(
+      'DOWN DOWN RIGHT LEFT UP UP RIGHT INTERACT LEFT DOWN DOWN RIGHT UP LEFT UP RIGHT RIGHT RIGHT',
+    )
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('...@*')
+    parts.push('..#..')
+    parts.push('..#..')
+    parts.push('')
+
+    // Example 4: Portal teleportation
+    parts.push('[EXAMPLE 4]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@(..^.).#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#.(..^.@.#')
+    parts.push('')
+
+    // Example 5: Key-door matching
+    parts.push('[EXAMPLE 5]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@a.1.b.2.X#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT INTERACT RIGHT RIGHT RIGHT RIGHT INTERACT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#......@..X#')
+    parts.push('')
+
+    // Example 6: Trap = GAMEOVER
+    parts.push('[EXAMPLE 6]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#@^...X#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT RIGHT RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#.@...X#')
+    parts.push('GAMEOVER')
+    parts.push('')
+
+    // Example 7: Goal = GAME COMPLETE
+    parts.push('[EXAMPLE 7]:')
+    parts.push('')
+    parts.push('Initial Board State:')
+    parts.push('#...@X#')
+    parts.push('')
+    parts.push('Move Input:')
+    parts.push('RIGHT')
+    parts.push('')
+    parts.push('New Board State:')
+    parts.push('#....@#')
+    parts.push('GAME COMPLETE')
+    parts.push('')
+  }
 
   return parts.join('\n')
 }
@@ -201,7 +351,7 @@ function generateExamples(): string {
 /**
  * Generate detailed instructions section
  */
-function generateInstructions(): string {
+function generateInstructions(semantic = false): string {
   const parts: string[] = []
 
   parts.push('# Dungeon Puzzle')
@@ -215,13 +365,26 @@ function generateInstructions(): string {
   parts.push('## Rules')
   parts.push('- You can move UP, DOWN, LEFT, or RIGHT')
   parts.push('- Use INTERACT to open adjacent doors (requires matching key)')
-  parts.push('- **Keys** (a,b,c,d): Walk onto a key tile to collect it (tile becomes empty)')
-  parts.push('- **Doors** (1,2,3,4): Block movement when closed. Use INTERACT with matching key')
-  parts.push('  - Key a opens door 1, key b opens door 2, key c opens door 3, key d opens door 4')
-  parts.push('- **Blocks** (*): Can be pushed into empty spaces or onto traps')
-  parts.push('- **Traps** (^): Deadly to player. Pushing a block onto a trap neutralizes both')
-  parts.push('- **Portals** (( and )): Walking onto ( teleports you to ), and vice versa')
-  parts.push('- **Goal** (X): Reach this to win')
+
+  if (semantic) {
+    parts.push('- **Keys** (R,B,N,Y): Walk onto a key tile to collect it (tile becomes empty)')
+    parts.push('- **Doors** (r,b,n,y): Block movement when closed. Use INTERACT with matching key')
+    parts.push(
+      '  - Red key (R) opens red door (r), Blue key (B) opens blue door (b), Green key (N) opens green door (n), Yellow key (Y) opens yellow door (y)',
+    )
+    parts.push('- **Blocks** (O): Can be pushed into empty spaces or onto traps')
+    parts.push('- **Traps** (!): Deadly to player. Pushing a block onto a trap neutralizes both')
+    parts.push('- **Portals** ([ and ]): Walking onto [ teleports you to ], and vice versa')
+    parts.push('- **Goal** (G): Reach this to win')
+  } else {
+    parts.push('- **Keys** (a,b,c,d): Walk onto a key tile to collect it (tile becomes empty)')
+    parts.push('- **Doors** (1,2,3,4): Block movement when closed. Use INTERACT with matching key')
+    parts.push('  - Key a opens door 1, key b opens door 2, key c opens door 3, key d opens door 4')
+    parts.push('- **Blocks** (*): Can be pushed into empty spaces or onto traps')
+    parts.push('- **Traps** (^): Deadly to player. Pushing a block onto a trap neutralizes both')
+    parts.push('- **Portals** (( and )): Walking onto ( teleports you to ), and vice versa')
+    parts.push('- **Goal** (X): Reach this to win')
+  }
   parts.push('- Walls (#) are impassable')
   parts.push('')
 
@@ -230,12 +393,22 @@ function generateInstructions(): string {
   parts.push('- # = Wall')
   parts.push('- . = Empty floor')
   parts.push('- @ = Player')
-  parts.push('- X = Goal (reach this to win)')
-  parts.push('- a, b, c, d = Keys')
-  parts.push('- 1, 2, 3, 4 = Doors (key a opens 1, b opens 2, etc.)')
-  parts.push('- * = Pushable block')
-  parts.push('- ^ = Trap (deadly)')
-  parts.push('- ( and ) = Portals (teleport between them)')
+
+  if (semantic) {
+    parts.push('- G = Goal (reach this to win)')
+    parts.push('- R = Red Key, B = Blue Key, N = Green Key, Y = Yellow Key')
+    parts.push('- r = Red Door, b = Blue Door, n = Green Door, y = Yellow Door')
+    parts.push('- O = Pushable block')
+    parts.push('- ! = Trap (deadly)')
+    parts.push('- [ and ] = Portals (teleport between them)')
+  } else {
+    parts.push('- X = Goal (reach this to win)')
+    parts.push('- a, b, c, d = Keys')
+    parts.push('- 1, 2, 3, 4 = Doors (key a opens 1, b opens 2, etc.)')
+    parts.push('- * = Pushable block')
+    parts.push('- ^ = Trap (deadly)')
+    parts.push('- ( and ) = Portals (teleport between them)')
+  }
   parts.push('')
 
   return parts.join('\n')
@@ -296,15 +469,16 @@ function generateExplorationInstructions(): string {
  */
 export function generateDungeonPrompt(state: GameState, options: PromptOptions): string {
   const parts: string[] = []
+  const semantic = options.enableSemanticSymbols
 
   // Add instructions if enabled
   if (options.addInstructions) {
-    parts.push(generateInstructions())
+    parts.push(generateInstructions(semantic))
   }
 
   // Add examples if enabled
   if (options.addExamples) {
-    parts.push(generateExamples())
+    parts.push(generateExamples(semantic))
   }
 
   // Minimal header (always shown)
@@ -318,7 +492,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   // Board state (always shown)
   parts.push('Board State:')
   parts.push('```')
-  parts.push(gameStateToAscii(state))
+  parts.push(gameStateToAscii(state, semantic))
   parts.push('```')
   parts.push('')
 
@@ -326,7 +500,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push(`Moves made: ${state.turn}`)
   parts.push(`Player position: (${state.playerPosition.x},${state.playerPosition.y})`)
   if (state.inventory.keys.length > 0) {
-    const keys = state.inventory.keys.map(keyColorToSymbol)
+    const keys = state.inventory.keys.map((k) => keyColorToSymbol(k, semantic))
     parts.push(`Inventory: ${keys.join(', ')}`)
   }
   parts.push('')
@@ -335,10 +509,12 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push('Available Moves: UP, DOWN, LEFT, RIGHT, INTERACT')
   parts.push('')
 
+  const goalSymbol = semantic ? 'G' : 'X'
+
   if (options.enableExploration) {
     parts.push(generateExplorationInstructions())
   } else if (options.executionMode === 'fullSolution') {
-    parts.push('Provide a solution sequence to reach X.')
+    parts.push(`Provide a solution sequence to reach ${goalSymbol}.`)
     parts.push('')
     parts.push('Return ONLY a JSON object in this exact format (no other text):')
     parts.push('{"reasoning":"<your reasoning>","moves":["UP","RIGHT","INTERACT","DOWN","LEFT"]}')
@@ -353,7 +529,21 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
 }
 
 /** Convert key color to symbolic character */
-function keyColorToSymbol(color: string): string {
+function keyColorToSymbol(color: string, semantic = false): string {
+  if (semantic) {
+    switch (color) {
+      case 'RED':
+        return 'R'
+      case 'BLUE':
+        return 'B'
+      case 'GREEN':
+        return 'N'
+      case 'YELLOW':
+        return 'Y'
+      default:
+        return color
+    }
+  }
   switch (color) {
     case 'RED':
       return 'a'
@@ -406,7 +596,7 @@ export interface CommandCounts {
  */
 export function generateExplorationContinuationPrompt(
   state: GameState,
-  _options: PromptOptions,
+  options: PromptOptions,
   previousMoves: string[],
   wasRestart: boolean,
   originalPrompt: string,
@@ -415,6 +605,7 @@ export function generateExplorationContinuationPrompt(
   commandCounts?: CommandCounts,
 ): string {
   const parts: string[] = []
+  const semantic = options.enableSemanticSymbols
 
   // Include full original prompt for context
   parts.push('=== ORIGINAL PUZZLE ===')
@@ -470,7 +661,7 @@ export function generateExplorationContinuationPrompt(
           `Player position: (${attempt.playerPositionAfter.x},${attempt.playerPositionAfter.y})`,
         )
         if (attempt.inventoryAfter.length > 0) {
-          const keys = attempt.inventoryAfter.map(keyColorToSymbol)
+          const keys = attempt.inventoryAfter.map((k) => keyColorToSymbol(k, semantic))
           parts.push(`Inventory: ${keys.join(', ')}`)
         }
         parts.push('Board state after:')
@@ -519,14 +710,14 @@ export function generateExplorationContinuationPrompt(
 
   parts.push('Current Board State:')
   parts.push('```')
-  parts.push(gameStateToAscii(state))
+  parts.push(gameStateToAscii(state, semantic))
   parts.push('```')
   parts.push('')
 
   parts.push(`Moves made: ${state.turn}`)
   parts.push(`Player position: (${state.playerPosition.x},${state.playerPosition.y})`)
   if (state.inventory.keys.length > 0) {
-    const keys = state.inventory.keys.map(keyColorToSymbol)
+    const keys = state.inventory.keys.map((k) => keyColorToSymbol(k, semantic))
     parts.push(`Inventory: ${keys.join(', ')}`)
   }
   parts.push('')

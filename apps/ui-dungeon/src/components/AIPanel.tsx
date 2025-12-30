@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@sokoban-eval-toolkit/ui-library/components/select'
 import { Separator } from '@sokoban-eval-toolkit/ui-library/components/separator'
+import { Textarea } from '@sokoban-eval-toolkit/ui-library/components/textarea'
 import { OPENROUTER_MODELS } from '@sokoban-eval-toolkit/utils'
 import { AI_MOVE_DELAY } from '@src/constants'
 import {
@@ -86,9 +87,11 @@ export function AIPanel({
   const [inflightSeconds, setInflightSeconds] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [copiedContinuePrompt, setCopiedContinuePrompt] = useState(false)
+  const [promptGuidance, setPromptGuidance] = useState('')
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
   const [copiedRawResponse, setCopiedRawResponse] = useState(false)
+  const [copiedFullContext, setCopiedFullContext] = useState(false)
   const [wasManuallyStopped, setWasManuallyStopped] = useState(false)
   const [storedSolution, setStoredSolution] = useState<Action[]>([])
   const [showFullPath, setShowFullPath] = useState(false)
@@ -750,13 +753,16 @@ export function AIPanel({
   const handleCopyPrompt = useCallback(async () => {
     if (!previewPrompt) return
     try {
-      await navigator.clipboard.writeText(previewPrompt)
+      const finalPrompt = promptGuidance.trim()
+        ? `${previewPrompt}\n\n## Strategic Puzzle Instructions\n\n${promptGuidance.trim()}\n\nThe above reasoning has been verified as correct. Use it to guide your move generation.\n\n## Task\nBased on the Board State and the Strategic Instructions above, output the JSON solution.`
+        : previewPrompt
+      await navigator.clipboard.writeText(finalPrompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
     }
-  }, [previewPrompt])
+  }, [previewPrompt, promptGuidance])
 
   const handleCopyContinuePrompt = useCallback(async () => {
     if (!state || !isExploring || !initialPrompt) return
@@ -827,6 +833,83 @@ export function AIPanel({
       console.error('Failed to copy:', err)
     }
   }, [rawResponse])
+
+  const handleCopyFullContext = useCallback(async () => {
+    if (!previewPrompt) return
+    try {
+      const parts: string[] = []
+
+      // Initial Prompt
+      parts.push('## Initial Prompt')
+      parts.push('')
+      const finalPrompt = promptGuidance.trim()
+        ? `${previewPrompt}\n\n## Strategic Puzzle Instructions\n\n${promptGuidance.trim()}\n\nThe above reasoning has been verified as correct. Use it to guide your move generation.\n\n## Task\nBased on the Board State and the Strategic Instructions above, output the JSON solution.`
+        : previewPrompt
+      parts.push(finalPrompt)
+      parts.push('')
+
+      // AI Reasoning
+      const reasoning = nativeReasoning || parsedReasoning
+      if (reasoning) {
+        parts.push('## AI Reasoning')
+        parts.push('')
+        parts.push(reasoning)
+        parts.push('')
+      }
+
+      // AI Response
+      if (rawResponse) {
+        parts.push('## AI Response')
+        parts.push('')
+        parts.push('```json')
+        parts.push(rawResponse)
+        parts.push('```')
+        parts.push('')
+      }
+
+      // Puzzle Outcome
+      parts.push('## Puzzle Outcome')
+      parts.push('')
+      if (state?.done) {
+        if (state.success) {
+          parts.push('**Result:** ✓ Puzzle Solved')
+        } else {
+          parts.push('**Result:** ✗ Failed (Game Over)')
+        }
+      } else {
+        parts.push('**Result:** In Progress')
+      }
+      parts.push(`**Moves Executed:** ${state?.turn ?? 0}`)
+      parts.push('')
+
+      // Metrics
+      parts.push('## Metrics')
+      parts.push('')
+      parts.push(`- **Cost:** $${sessionMetrics.totalCost.toFixed(6)}`)
+      parts.push(`- **Total Tokens:** ${sessionMetrics.totalTokens.toLocaleString()}`)
+      parts.push(`  - Input: ${sessionMetrics.totalInputTokens.toLocaleString()}`)
+      parts.push(`  - Output: ${sessionMetrics.totalOutputTokens.toLocaleString()}`)
+      if (sessionMetrics.totalReasoningTokens > 0) {
+        parts.push(`  - Reasoning: ${sessionMetrics.totalReasoningTokens.toLocaleString()}`)
+      }
+      parts.push(`- **Duration:** ${(sessionMetrics.totalDurationMs / 1000).toFixed(2)}s`)
+      parts.push(`- **Requests:** ${sessionMetrics.requestCount}`)
+
+      await navigator.clipboard.writeText(parts.join('\n'))
+      setCopiedFullContext(true)
+      setTimeout(() => setCopiedFullContext(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [
+    previewPrompt,
+    promptGuidance,
+    nativeReasoning,
+    parsedReasoning,
+    rawResponse,
+    state,
+    sessionMetrics,
+  ])
 
   // Computed states
   const aiHasRun = plannedMoves.length > 0
@@ -1083,6 +1166,22 @@ export function AIPanel({
                 Enable Exploration
               </Label>
             </div>
+            {/* Enable Semantic Symbols option */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="enableSemanticSymbols"
+                checked={promptOptions.enableSemanticSymbols}
+                onCheckedChange={() => togglePromptOption('enableSemanticSymbols')}
+                disabled={isRunning || plannedMoves.length > 0}
+                className="h-3.5 w-3.5"
+              />
+              <Label
+                htmlFor="enableSemanticSymbols"
+                className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
+              >
+                Enable Semantic Symbols
+              </Label>
+            </div>
           </div>
         </div>
         <Separator />
@@ -1117,6 +1216,15 @@ export function AIPanel({
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
               </Button>
+              <Button
+                onClick={handleCopyFullContext}
+                variant="outline"
+                className="w-full"
+                size="sm"
+              >
+                <Copy className="h-3 w-3 mr-1.5" />
+                {copiedFullContext ? 'Copied!' : 'Copy Full Context'}
+              </Button>
             </>
           ) : aiCompleted ? (
             <>
@@ -1125,6 +1233,15 @@ export function AIPanel({
               </Button>
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
+              </Button>
+              <Button
+                onClick={handleCopyFullContext}
+                variant="outline"
+                className="w-full"
+                size="sm"
+              >
+                <Copy className="h-3 w-3 mr-1.5" />
+                {copiedFullContext ? 'Copied!' : 'Copy Full Context'}
               </Button>
             </>
           ) : aiStopped ? (
@@ -1136,6 +1253,15 @@ export function AIPanel({
               )}
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
+              </Button>
+              <Button
+                onClick={handleCopyFullContext}
+                variant="outline"
+                className="w-full"
+                size="sm"
+              >
+                <Copy className="h-3 w-3 mr-1.5" />
+                {copiedFullContext ? 'Copied!' : 'Copy Full Context'}
               </Button>
             </>
           ) : isRunning ? (
@@ -1176,6 +1302,17 @@ export function AIPanel({
                 <Copy className="h-3 w-3 mr-1.5" />
                 {copied ? 'Copied!' : 'Copy Prompt'}
               </Button>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Strategic Puzzle Instructions (optional)
+                </Label>
+                <Textarea
+                  value={promptGuidance}
+                  onChange={(e) => setPromptGuidance(e.target.value)}
+                  placeholder="Add strategic instructions for the model..."
+                  className="min-h-[60px] text-xs"
+                />
+              </div>
             </>
           )}
         </div>

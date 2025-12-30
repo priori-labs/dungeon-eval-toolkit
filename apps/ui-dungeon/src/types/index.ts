@@ -121,6 +121,8 @@ export interface PromptOptions {
   addExamples: boolean
   /** Enable exploration mode with EXPLORE/CONTINUE/RESTART commands */
   enableExploration: boolean
+  /** Use semantic symbol names (e.g., "red key" instead of "a") */
+  enableSemanticSymbols: boolean
 }
 
 // Exploration command types for AI responses
