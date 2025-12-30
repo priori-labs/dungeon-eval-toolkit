@@ -120,7 +120,12 @@ export interface PromptOptions {
   executionMode: 'fullSolution' | 'moveByMove'
   cipherSymbols: boolean
   coordinateLocations: boolean
+  fewShotExamples: boolean
+  enableExploration: boolean
 }
+
+// Exploration command types for AI responses
+export type ExplorationCommand = 'EXPLORE' | 'CONTINUE' | 'RESTART' | 'RESTART_EXPLORE' | 'SOLUTION'
 
 // AI session metrics
 export interface SessionMetrics {

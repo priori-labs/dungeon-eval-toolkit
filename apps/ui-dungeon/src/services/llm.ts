@@ -1,6 +1,16 @@
 import { createOpenRouterClient } from '@sokoban-eval-toolkit/utils'
-import type { Action, GameState, PromptOptions, SessionMetrics } from '@src/types'
-import { generateDungeonPrompt, generateMoveByMovePrompt } from '@src/utils/promptGeneration'
+import type {
+  Action,
+  ExplorationCommand,
+  GameState,
+  PromptOptions,
+  SessionMetrics,
+} from '@src/types'
+import {
+  generateDungeonPrompt,
+  generateFewShotPrompt,
+  generateMoveByMovePrompt,
+} from '@src/utils/promptGeneration'
 import { parseAIResponse } from '@src/utils/responseParser'
 
 function getApiKey(): string | undefined {
@@ -26,6 +36,8 @@ export interface LLMResponse {
   cost: number
   durationMs: number
   error?: string
+  /** Exploration command if AI is exploring rather than providing final solution */
+  explorationCommand?: ExplorationCommand
 }
 
 /**
@@ -45,7 +57,10 @@ export async function getDungeonSolution(
     }
     const client = createOpenRouterClient(apiKey)
 
-    const prompt = generateDungeonPrompt(state, options)
+    // Use few-shot prompt when enabled, otherwise use standard prompt
+    const prompt = options.fewShotExamples
+      ? generateFewShotPrompt(state, options)
+      : generateDungeonPrompt(state, options)
 
     const response = await client.chat.completions.create({
       model,
@@ -93,10 +108,96 @@ export async function getDungeonSolution(
       cost,
       durationMs,
       error: parsed.error,
+      explorationCommand: parsed.explorationCommand,
     }
   } catch (error) {
     const durationMs = Date.now() - startTime
     console.error('[LLM Error]', error)
+    return {
+      moves: [],
+      rawResponse: '',
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cost: 0,
+      durationMs,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Continue exploration with a follow-up prompt
+ */
+export async function continueExploration(
+  initialPrompt: string,
+  previousResponse: string,
+  continuationPrompt: string,
+  model: string,
+): Promise<LLMResponse> {
+  const startTime = Date.now()
+
+  try {
+    const apiKey = getApiKey()
+    if (!apiKey) {
+      throw new Error('API key not configured')
+    }
+    const client = createOpenRouterClient(apiKey)
+
+    // Build conversation history
+    const messages = [
+      { role: 'user' as const, content: initialPrompt },
+      { role: 'assistant' as const, content: previousResponse },
+      { role: 'user' as const, content: continuationPrompt },
+    ]
+
+    const response = await client.chat.completions.create({
+      model,
+      messages,
+      temperature: 0.3,
+    })
+
+    const durationMs = Date.now() - startTime
+    const message = response.choices[0]?.message
+    const content = message?.content ?? ''
+    const usage = response.usage
+
+    // biome-ignore lint/suspicious/noExplicitAny: OpenRouter-specific field
+    const nativeReasoning = (message as any)?.reasoning as string | undefined
+
+    const parsed = parseAIResponse(content)
+
+    console.log('[LLM Response - Exploration Continue]', {
+      model,
+      message,
+      usage,
+      durationMs,
+    })
+
+    const inputTokens = usage?.prompt_tokens ?? 0
+    const outputTokens = usage?.completion_tokens ?? 0
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const reasoningTokens = (usage as any)?.completion_tokens_details?.reasoning_tokens ?? 0
+    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
+    const actualCost = (usage as any)?.cost as number | undefined
+    const cost = actualCost ?? estimateCost(model, inputTokens, outputTokens)
+
+    return {
+      moves: parsed.moves,
+      rawResponse: content,
+      nativeReasoning: nativeReasoning || undefined,
+      parsedReasoning: parsed.reasoning,
+      inputTokens,
+      outputTokens,
+      reasoningTokens,
+      cost,
+      durationMs,
+      error: parsed.error,
+      explorationCommand: parsed.explorationCommand,
+    }
+  } catch (error) {
+    const durationMs = Date.now() - startTime
+    console.error('[LLM Error - Exploration]', error)
     return {
       moves: [],
       rawResponse: '',

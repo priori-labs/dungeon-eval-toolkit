@@ -18,13 +18,29 @@ import { Separator } from '@sokoban-eval-toolkit/ui-library/components/separator
 import { OPENROUTER_MODELS } from '@sokoban-eval-toolkit/utils'
 import { AI_MOVE_DELAY } from '@src/constants'
 import {
+  continueExploration,
   createSessionMetrics,
   getDungeonSolution,
   hasOpenRouterApiKey,
   updateSessionMetrics,
 } from '@src/services/llm'
-import type { Action, GameState, PlannedMove, PromptOptions, SessionMetrics } from '@src/types'
-import { DEFAULT_PROMPT_OPTIONS, generateDungeonPrompt } from '@src/utils/promptGeneration'
+import type {
+  Action,
+  ExplorationCommand,
+  GameState,
+  PlannedMove,
+  PromptOptions,
+  SessionMetrics,
+} from '@src/types'
+import {
+  DEFAULT_PROMPT_OPTIONS,
+  type ExplorationAttempt,
+  gameStateToAscii,
+  gameStateToObfuscatedAscii,
+  generateDungeonPrompt,
+  generateExplorationContinuationPrompt,
+  generateFewShotPrompt,
+} from '@src/utils/promptGeneration'
 import { AlertCircle, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -70,11 +86,24 @@ export function AIPanel({
   const [inflightStartTime, setInflightStartTime] = useState<number | null>(null)
   const [inflightSeconds, setInflightSeconds] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedContinuePrompt, setCopiedContinuePrompt] = useState(false)
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
   const [wasManuallyStopped, setWasManuallyStopped] = useState(false)
   const [storedSolution, setStoredSolution] = useState<Action[]>([])
   const [showFullPath, setShowFullPath] = useState(false)
+
+  // Exploration mode state
+  const [isExploring, setIsExploring] = useState(false)
+  const [explorationMoves, setExplorationMoves] = useState<string[]>([])
+  const [lastExplorationCommand, setLastExplorationCommand] = useState<ExplorationCommand | null>(
+    null,
+  )
+  const [initialPrompt, setInitialPrompt] = useState<string | null>(null)
+  const [previousAIResponse, setPreviousAIResponse] = useState<string | null>(null)
+  const [explorationHistory, setExplorationHistory] = useState<ExplorationAttempt[]>([])
+  // Cumulative moves in current exploration path (resets on RESTART)
+  const [cumulativeExplorationMoves, setCumulativeExplorationMoves] = useState<Action[]>([])
 
   const abortRef = useRef(false)
   const isRunningRef = useRef(false)
@@ -101,6 +130,9 @@ export function AIPanel({
       return
     }
 
+    // Set initial value immediately
+    setInflightSeconds(Math.floor((Date.now() - inflightStartTime) / 1000))
+
     const interval = setInterval(() => {
       setInflightSeconds(Math.floor((Date.now() - inflightStartTime) / 1000))
     }, 1000)
@@ -123,6 +155,13 @@ export function AIPanel({
       setWasManuallyStopped(false)
       setStoredSolution([])
       setShowFullPath(false)
+      setIsExploring(false)
+      setExplorationMoves([])
+      setLastExplorationCommand(null)
+      setInitialPrompt(null)
+      setPreviousAIResponse(null)
+      setExplorationHistory([])
+      setCumulativeExplorationMoves([])
       abortRef.current = true
       isRunningRef.current = false
       isReplayingRef.current = false
@@ -253,9 +292,20 @@ export function AIPanel({
     setNativeReasoning(null)
     setParsedReasoning(null)
     setWasManuallyStopped(false)
+    setIsExploring(false)
+    setExplorationMoves([])
+    setLastExplorationCommand(null)
+    setInitialPrompt(null)
+    setPreviousAIResponse(null)
     abortRef.current = false
     setPlannedMoves([])
     setSessionMetrics(createSessionMetrics())
+
+    // Generate and store the initial prompt for potential continuation
+    const prompt = promptOptions.fewShotExamples
+      ? generateFewShotPrompt(state, promptOptions)
+      : generateDungeonPrompt(state, promptOptions)
+    setInitialPrompt(prompt)
 
     setInflightStartTime(Date.now())
 
@@ -282,6 +332,31 @@ export function AIPanel({
       return
     }
 
+    // Handle exploration commands
+    if (response.explorationCommand === 'EXPLORE' || response.explorationCommand === 'CONTINUE') {
+      // Execute exploration moves and wait for continue
+      setIsExploring(true)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(response.explorationCommand)
+      setPreviousAIResponse(response.rawResponse)
+      // Initialize cumulative moves for replay
+      setCumulativeExplorationMoves(response.moves)
+    } else if (response.explorationCommand === 'RESTART_EXPLORE') {
+      // Reset was already done at start, execute exploration moves
+      setIsExploring(true)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand('RESTART_EXPLORE')
+      setPreviousAIResponse(response.rawResponse)
+      // Initialize cumulative moves for replay
+      setCumulativeExplorationMoves(response.moves)
+    } else if (response.explorationCommand === 'RESTART') {
+      // This is a final solution after restart - treat as normal solution
+      setStoredSolution(response.moves)
+    } else {
+      // Normal solution - store for replay
+      setStoredSolution(response.moves)
+    }
+
     // Create planned moves
     const moves: ExtendedPlannedMove[] = response.moves.map((action) => ({
       id: uuidv4(),
@@ -289,9 +364,6 @@ export function AIPanel({
       status: 'pending' as PlannedMoveStatus,
     }))
     setPlannedMoves(moves)
-
-    // Store solution for replay
-    setStoredSolution(response.moves)
 
     // Set up for execution
     movesRef.current = response.moves
@@ -325,6 +397,13 @@ export function AIPanel({
     setWasManuallyStopped(false)
     setStoredSolution([])
     setShowFullPath(false)
+    setIsExploring(false)
+    setExplorationMoves([])
+    setLastExplorationCommand(null)
+    setInitialPrompt(null)
+    setPreviousAIResponse(null)
+    setExplorationHistory([])
+    setCumulativeExplorationMoves([])
     setSessionMetrics(createSessionMetrics())
     onPathHighlight?.(null)
     onReset()
@@ -364,6 +443,173 @@ export function AIPanel({
     }, 300)
   }, [storedSolution, onReset, executeNextMove])
 
+  // Replay the exploration moves from the beginning
+  const handleReplayExploration = useCallback(() => {
+    if (cumulativeExplorationMoves.length === 0) return
+
+    // Mark as replaying so we preserve session metrics
+    isReplayingRef.current = true
+
+    // Reset puzzle state
+    onReset()
+
+    // Keep exploration state but reset running state
+    setIsRunning(true)
+    isRunningRef.current = true
+    setError(null)
+    setWasManuallyStopped(false)
+
+    // Create fresh planned moves from cumulative exploration moves
+    const moves: ExtendedPlannedMove[] = cumulativeExplorationMoves.map((action) => ({
+      id: uuidv4(),
+      action,
+      status: 'pending' as PlannedMoveStatus,
+    }))
+    setPlannedMoves(moves)
+
+    // Set up for execution
+    movesRef.current = cumulativeExplorationMoves
+    moveIndexRef.current = 0
+
+    // Start executing moves after a short delay
+    setTimeout(() => {
+      executeNextMove()
+    }, 300)
+  }, [cumulativeExplorationMoves, onReset, executeNextMove])
+
+  // Continue exploration after AI has explored
+  const handleContinueExploration = useCallback(async () => {
+    if (!state || !initialPrompt || !previousAIResponse || isRunning) return
+
+    setIsRunning(true)
+    isRunningRef.current = true
+    setError(null)
+    abortRef.current = false
+
+    // Generate continuation prompt with current state
+    const wasRestart =
+      lastExplorationCommand === 'RESTART' || lastExplorationCommand === 'RESTART_EXPLORE'
+    // Use native reasoning if available, otherwise parsed reasoning, otherwise raw response
+    const aiReasoning = nativeReasoning || parsedReasoning || previousAIResponse
+
+    // Record this exploration attempt to history before continuing
+    // Use obfuscated board state in few-shot mode
+    const boardStateAfter = promptOptions.fewShotExamples
+      ? gameStateToObfuscatedAscii(state)
+      : gameStateToAscii(state)
+    const currentAttempt: ExplorationAttempt = {
+      moves: explorationMoves,
+      result: state.done ? (state.success ? 'success' : 'gameover') : 'continue',
+      wasRestart,
+      reasoning: aiReasoning ?? undefined,
+      boardStateAfter,
+      playerPositionAfter: { x: state.playerPosition.x, y: state.playerPosition.y },
+      inventoryAfter: [...state.inventory.keys],
+      movesMadeAfter: state.turn,
+    }
+    const updatedHistory = [...explorationHistory, currentAttempt]
+    setExplorationHistory(updatedHistory)
+
+    const continuationPrompt = generateExplorationContinuationPrompt(
+      state,
+      promptOptions,
+      explorationMoves,
+      wasRestart,
+      initialPrompt,
+      aiReasoning,
+      updatedHistory.slice(0, -1), // Pass history excluding the current attempt (which is shown in EXPLORATION RESULT)
+    )
+
+    setInflightStartTime(Date.now())
+
+    // Continue the conversation
+    const response = await continueExploration(
+      initialPrompt,
+      previousAIResponse,
+      continuationPrompt,
+      model,
+    )
+
+    setInflightStartTime(null)
+
+    if (abortRef.current) {
+      setIsRunning(false)
+      isRunningRef.current = false
+      return
+    }
+
+    setRawResponse(response.rawResponse)
+    setNativeReasoning(response.nativeReasoning ?? null)
+    setParsedReasoning(response.parsedReasoning ?? null)
+    setSessionMetrics((prev) => updateSessionMetrics(prev, response))
+
+    if (response.error || response.moves.length === 0) {
+      setError(response.error || 'No moves returned from AI')
+      setIsRunning(false)
+      isRunningRef.current = false
+      return
+    }
+
+    // Handle the response
+    if (response.explorationCommand === 'EXPLORE' || response.explorationCommand === 'CONTINUE') {
+      // Continue exploring from current state
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(response.explorationCommand)
+      setPreviousAIResponse(response.rawResponse)
+      // Add to cumulative moves for replay
+      setCumulativeExplorationMoves((prev) => [...prev, ...response.moves])
+    } else if (response.explorationCommand === 'RESTART_EXPLORE') {
+      // Restart and explore
+      onReset()
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand('RESTART_EXPLORE')
+      setPreviousAIResponse(response.rawResponse)
+      // Reset cumulative moves since we're restarting
+      setCumulativeExplorationMoves(response.moves)
+    } else if (response.explorationCommand === 'RESTART') {
+      // Final solution - restart and execute
+      onReset()
+      setIsExploring(false)
+      setStoredSolution(response.moves)
+    } else {
+      // Normal solution (JSON format) - this continues from current state
+      setIsExploring(false)
+      setStoredSolution(response.moves)
+    }
+
+    // Create planned moves
+    const moves: ExtendedPlannedMove[] = response.moves.map((action) => ({
+      id: uuidv4(),
+      action,
+      status: 'pending' as PlannedMoveStatus,
+    }))
+    setPlannedMoves(moves)
+
+    // Set up for execution
+    movesRef.current = response.moves
+    moveIndexRef.current = 0
+    isReplayingRef.current = false
+
+    // Start executing moves
+    setTimeout(() => {
+      executeNextMove()
+    }, 300)
+  }, [
+    state,
+    initialPrompt,
+    previousAIResponse,
+    nativeReasoning,
+    parsedReasoning,
+    isRunning,
+    lastExplorationCommand,
+    promptOptions,
+    explorationMoves,
+    explorationHistory,
+    model,
+    onReset,
+    executeNextMove,
+  ])
+
   const togglePromptOption = (key: keyof PromptOptions) => {
     if (key === 'executionMode') return // Not a boolean option
     setPromptOptions((prev) => ({
@@ -372,8 +618,12 @@ export function AIPanel({
     }))
   }
 
-  // Generate preview prompt for copy
-  const previewPrompt = state ? generateDungeonPrompt(state, promptOptions) : null
+  // Generate preview prompt for copy - use few-shot prompt when enabled
+  const previewPrompt = state
+    ? promptOptions.fewShotExamples
+      ? generateFewShotPrompt(state, promptOptions)
+      : generateDungeonPrompt(state, promptOptions)
+    : null
 
   const handleCopyPrompt = useCallback(async () => {
     if (!previewPrompt) return
@@ -385,6 +635,41 @@ export function AIPanel({
       console.error('Failed to copy:', err)
     }
   }, [previewPrompt])
+
+  const handleCopyContinuePrompt = useCallback(async () => {
+    if (!state || !isExploring || !initialPrompt) return
+    const wasRestart =
+      lastExplorationCommand === 'RESTART' || lastExplorationCommand === 'RESTART_EXPLORE'
+    // Use native reasoning if available, otherwise parsed reasoning, otherwise raw response
+    const aiReasoning = nativeReasoning || parsedReasoning || previousAIResponse
+    const continuationPrompt = generateExplorationContinuationPrompt(
+      state,
+      promptOptions,
+      explorationMoves,
+      wasRestart,
+      initialPrompt,
+      aiReasoning ?? undefined,
+      explorationHistory, // Include full history for preview
+    )
+    try {
+      await navigator.clipboard.writeText(continuationPrompt)
+      setCopiedContinuePrompt(true)
+      setTimeout(() => setCopiedContinuePrompt(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [
+    state,
+    isExploring,
+    lastExplorationCommand,
+    promptOptions,
+    explorationMoves,
+    explorationHistory,
+    initialPrompt,
+    nativeReasoning,
+    parsedReasoning,
+    previousAIResponse,
+  ])
 
   const handleCopyNativeReasoning = useCallback(async () => {
     if (!nativeReasoning) return
@@ -617,13 +902,74 @@ export function AIPanel({
                 Coordinate Locations
               </Label>
             </div>
+            {/* Few Shot Examples option */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="fewShotExamples"
+                checked={promptOptions.fewShotExamples}
+                onCheckedChange={() => togglePromptOption('fewShotExamples')}
+                disabled={isRunning || plannedMoves.length > 0}
+                className="h-3.5 w-3.5"
+              />
+              <Label
+                htmlFor="fewShotExamples"
+                className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
+              >
+                Few Shot Examples
+              </Label>
+            </div>
+            {/* Enable Exploration option */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="enableExploration"
+                checked={promptOptions.enableExploration}
+                onCheckedChange={() => togglePromptOption('enableExploration')}
+                disabled={isRunning || plannedMoves.length > 0}
+                className="h-3.5 w-3.5"
+              />
+              <Label
+                htmlFor="enableExploration"
+                className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
+              >
+                Enable Exploration
+              </Label>
+            </div>
           </div>
         </div>
         <Separator />
 
         {/* Controls */}
         <div className="space-y-2 flex-shrink-0">
-          {aiCompleted ? (
+          {isExploring && !isRunning ? (
+            <>
+              <div className="text-xs text-yellow-400 mb-2">AI is exploring...</div>
+              <Button onClick={handleContinueExploration} className="w-full" size="sm">
+                Continue Exploration
+              </Button>
+              <Button
+                onClick={handleCopyContinuePrompt}
+                variant="outline"
+                className="w-full"
+                size="sm"
+              >
+                <Copy className="h-3 w-3 mr-1.5" />
+                {copiedContinuePrompt ? 'Copied!' : 'Copy Continue Prompt'}
+              </Button>
+              {cumulativeExplorationMoves.length > 0 && (
+                <Button
+                  onClick={handleReplayExploration}
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                >
+                  Replay Exploration ({cumulativeExplorationMoves.length} moves)
+                </Button>
+              )}
+              <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
+                Reset
+              </Button>
+            </>
+          ) : aiCompleted ? (
             <>
               <Button onClick={handleReplay} className="w-full" size="sm">
                 Replay AI Solution
@@ -675,7 +1021,7 @@ export function AIPanel({
         {error && (
           <div className="space-y-2">
             <div className="bg-red-500/10 text-red-400 rounded-md px-3 py-2 text-xs">{error}</div>
-            {storedSolution.length > 0 && (
+            {storedSolution.length > 0 ? (
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="showFullPath"
@@ -687,7 +1033,11 @@ export function AIPanel({
                   Show full AI path on grid
                 </Label>
               </div>
-            )}
+            ) : !isExploring ? (
+              <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
+                Reset
+              </Button>
+            ) : null}
           </div>
         )}
 

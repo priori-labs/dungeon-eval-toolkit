@@ -185,9 +185,11 @@ function tryMove(state: GameState, delta: Position): MoveResult {
     y: state.playerPosition.y + delta.y,
   }
 
-  // Check bounds
+  const dirName = getDirName(delta)
+
+  // Check bounds - treat as no-op (player stays in place)
   if (!isInBounds(state, newPos)) {
-    return { success: false, message: 'Cannot move there' }
+    return { success: true, message: `Moved ${dirName} (no-op: out of bounds)` }
   }
 
   const targetTile = getTileAt(state.grid, newPos)
@@ -198,7 +200,8 @@ function tryMove(state: GameState, delta: Position): MoveResult {
   if (targetTile.type === TileType.BLOCK && !targetTile.isFixed) {
     const pushResult = tryPushBlock(state, newPos, delta)
     if (!pushResult.success) {
-      return { success: false, message: pushResult.message }
+      // Can't push block - treat as no-op
+      return { success: true, message: `Moved ${dirName} (no-op: ${pushResult.message})` }
     }
     pushedBlock = pushResult.pushedBlock
     neutralizedTrap = pushResult.neutralizedTrap
@@ -207,7 +210,8 @@ function tryMove(state: GameState, delta: Position): MoveResult {
   // Check if tile is passable (after handling block pushing)
   const finalTile = getTileAt(state.grid, newPos)
   if (!isPassable(finalTile)) {
-    return { success: false, message: 'Cannot move there' }
+    // Wall or closed door - treat as no-op (player stays in place)
+    return { success: true, message: `Moved ${dirName} (no-op: blocked)` }
   }
 
   // Move player
@@ -234,7 +238,6 @@ function tryMove(state: GameState, delta: Position): MoveResult {
     }
   }
 
-  const dirName = getDirName(delta)
   let message = `Moved ${dirName}`
   if (collectedKey) {
     message = `Collected ${collectedKey.toLowerCase()} key`
@@ -344,7 +347,8 @@ function tryInteract(state: GameState): InteractResult {
     }
   }
 
-  return { success: false, message: 'Nothing to interact with' }
+  // No interactable object found - treat as no-op (still a valid action)
+  return { success: true, message: 'Interact (no-op: nothing to interact with)' }
 }
 
 /**
