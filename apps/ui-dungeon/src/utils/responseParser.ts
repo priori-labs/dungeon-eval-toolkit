@@ -10,6 +10,8 @@ export interface ParsedAIResponse {
   error?: string
   /** Exploration command if AI is exploring rather than solving */
   explorationCommand?: ExplorationCommand
+  /** Whether SUBMIT was included in the response (finalizes solution) */
+  hasSubmit?: boolean
 }
 
 const VALID_ACTIONS: Action[] = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'INTERACT']
@@ -108,11 +110,25 @@ export function parseAIResponse(content: string): ParsedAIResponse {
       }
     }
 
-    // Handle multiple moves format: {"moves": ["COMMAND", "UP", "DOWN", ...]}
+    // Handle multiple moves format: {"moves": ["COMMAND", "UP", "DOWN", ..., "SUBMIT"]}
     // Command can be first element: EXPLORE, CONTINUE, RESTART, or RESTART followed by EXPLORE
+    // SUBMIT can be last element to finalize a solution
     if (parsed.moves && Array.isArray(parsed.moves)) {
       let explorationCommand: ExplorationCommand | undefined
       let movesToParse = parsed.moves
+      let hasSubmit = false
+
+      // Check if last element is SUBMIT
+      if (movesToParse.length > 0) {
+        const lastElement =
+          typeof movesToParse[movesToParse.length - 1] === 'string'
+            ? movesToParse[movesToParse.length - 1].toUpperCase().trim()
+            : ''
+        if (lastElement === 'SUBMIT') {
+          hasSubmit = true
+          movesToParse = movesToParse.slice(0, -1)
+        }
+      }
 
       // Check if first element is a command
       if (movesToParse.length > 0 && typeof movesToParse[0] === 'string') {
@@ -130,7 +146,7 @@ export function parseAIResponse(content: string): ParsedAIResponse {
             explorationCommand = 'RESTART_EXPLORE'
             movesToParse = movesToParse.slice(2)
           } else {
-            // RESTART command (final solution)
+            // RESTART command
             explorationCommand = 'RESTART'
             movesToParse = movesToParse.slice(1)
           }
@@ -147,6 +163,18 @@ export function parseAIResponse(content: string): ParsedAIResponse {
         }
       }
 
+      // If SUBMIT was present, it takes priority as the final command indicator
+      // But we still track if there was a RESTART prefix
+      if (hasSubmit) {
+        // SUBMIT overrides exploration commands except when combined with RESTART
+        // RESTART + SUBMIT means: reset and execute moves as final solution
+        if (explorationCommand !== 'RESTART') {
+          explorationCommand = 'SUBMIT'
+        }
+        // If explorationCommand is RESTART, we keep it but the presence of SUBMIT
+        // means this is a final solution (handled in AIPanel)
+      }
+
       const validMoves: Action[] = []
       for (const move of movesToParse) {
         if (typeof move === 'string') {
@@ -157,7 +185,7 @@ export function parseAIResponse(content: string): ParsedAIResponse {
         }
       }
 
-      if (validMoves.length === 0 && !explorationCommand) {
+      if (validMoves.length === 0 && !explorationCommand && !hasSubmit) {
         return {
           moves: [],
           reasoning,
@@ -168,7 +196,9 @@ export function parseAIResponse(content: string): ParsedAIResponse {
       return {
         moves: validMoves,
         reasoning,
-        explorationCommand,
+        explorationCommand:
+          hasSubmit && explorationCommand !== 'RESTART' ? 'SUBMIT' : explorationCommand,
+        hasSubmit,
       }
     }
 

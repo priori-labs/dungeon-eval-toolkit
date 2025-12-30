@@ -34,6 +34,8 @@ export interface LLMResponse {
   error?: string
   /** Exploration command if AI is exploring rather than providing final solution */
   explorationCommand?: ExplorationCommand
+  /** Whether SUBMIT was included in the response (finalizes solution) */
+  hasSubmit?: boolean
 }
 
 /**
@@ -102,6 +104,7 @@ export async function getDungeonSolution(
       durationMs,
       error: parsed.error,
       explorationCommand: parsed.explorationCommand,
+      hasSubmit: parsed.hasSubmit,
     }
   } catch (error) {
     const durationMs = Date.now() - startTime
@@ -187,6 +190,7 @@ export async function continueExploration(
       durationMs,
       error: parsed.error,
       explorationCommand: parsed.explorationCommand,
+      hasSubmit: parsed.hasSubmit,
     }
   } catch (error) {
     const durationMs = Date.now() - startTime

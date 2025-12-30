@@ -109,15 +109,37 @@ export function AIPanel({
     explore: 0,
     continue: 0,
     restart: 0,
+    submit: 0,
   })
   // Auto-run mode for exploration
   const [autoRun, setAutoRun] = useState(false)
+  const autoRunRef = useRef(false)
+  // Response history for exploration mode
+  const [responseHistory, setResponseHistory] = useState<
+    Array<{
+      id: string
+      command: string
+      tokens: number
+      durationMs: number
+      moves: number
+    }>
+  >([])
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    autoRunRef.current = autoRun
+  }, [autoRun])
+  useEffect(() => {
+    isExploringRef.current = isExploring
+  }, [isExploring])
 
   const abortRef = useRef(false)
   const isRunningRef = useRef(false)
   const isReplayingRef = useRef(false)
+  const isExploringRef = useRef(false)
   const movesRef = useRef<Action[]>([])
   const moveIndexRef = useRef(0)
+  const continueExplorationRef = useRef<(() => void) | null>(null)
   const onMoveRef = useRef(onMove)
   onMoveRef.current = onMove
   const historyContainerRef = useRef<HTMLDivElement>(null)
@@ -170,8 +192,9 @@ export function AIPanel({
       setPreviousAIResponse(null)
       setExplorationHistory([])
       setCumulativeExplorationMoves([])
-      setCommandCounts({ explore: 0, continue: 0, restart: 0 })
+      setCommandCounts({ explore: 0, continue: 0, restart: 0, submit: 0 })
       setAutoRun(false)
+      setResponseHistory([])
       abortRef.current = true
       isRunningRef.current = false
       isReplayingRef.current = false
@@ -255,6 +278,12 @@ export function AIPanel({
     if (index >= moves.length) {
       setIsRunning(false)
       isRunningRef.current = false
+      // Auto-continue if in auto-run mode and exploring (even if game over - AI can RESTART)
+      if (autoRunRef.current && isExploringRef.current && continueExplorationRef.current) {
+        setTimeout(() => {
+          continueExplorationRef.current?.()
+        }, 500)
+      }
       return
     }
 
@@ -279,6 +308,12 @@ export function AIPanel({
       setError(`Invalid move at step ${index + 1}: ${move}`)
       setIsRunning(false)
       isRunningRef.current = false
+      // Auto-continue if in auto-run mode and exploring (AI can RESTART after failure)
+      if (autoRunRef.current && isExploringRef.current && continueExplorationRef.current) {
+        setTimeout(() => {
+          continueExplorationRef.current?.()
+        }, 500)
+      }
       return
     }
 
@@ -333,6 +368,21 @@ export function AIPanel({
     setParsedReasoning(response.parsedReasoning ?? null)
     setSessionMetrics((prev) => updateSessionMetrics(prev, response))
 
+    // Track response history for exploration mode
+    if (promptOptions.enableExploration) {
+      const command = response.explorationCommand || 'SOLUTION'
+      setResponseHistory((prev) => [
+        ...prev,
+        {
+          id: uuidv4(),
+          command: command === 'RESTART_EXPLORE' ? 'RESTART EXPLORE' : command,
+          tokens: response.outputTokens,
+          durationMs: response.durationMs,
+          moves: response.moves.length,
+        },
+      ])
+    }
+
     if (response.error || response.moves.length === 0) {
       setError(response.error || 'No moves returned from AI')
       setIsRunning(false)
@@ -341,7 +391,17 @@ export function AIPanel({
     }
 
     // Handle exploration commands and update counts
-    if (response.explorationCommand === 'EXPLORE') {
+    // SUBMIT means AI is finalizing their solution
+    if (response.explorationCommand === 'SUBMIT' || response.hasSubmit) {
+      // Final solution - store for replay
+      setIsExploring(false)
+      setStoredSolution(response.moves)
+      setCommandCounts((prev) => ({ ...prev, submit: prev.submit + 1 }))
+      // If there was also a RESTART, count it
+      if (response.explorationCommand === 'RESTART') {
+        setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
+      }
+    } else if (response.explorationCommand === 'EXPLORE') {
       setIsExploring(true)
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand(response.explorationCommand)
@@ -364,11 +424,22 @@ export function AIPanel({
       setCumulativeExplorationMoves(response.moves)
       setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else if (response.explorationCommand === 'RESTART') {
-      // This is a final solution after restart - treat as normal solution
-      setStoredSolution(response.moves)
+      // RESTART without SUBMIT - still exploring after reset
+      setIsExploring(true)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand('RESTART')
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves(response.moves)
       setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
+    } else if (promptOptions.enableExploration) {
+      // In exploration mode without any command - keep exploring
+      setIsExploring(true)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(null)
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves(response.moves)
     } else {
-      // Normal solution - store for replay
+      // Normal solution (non-exploration mode) - store for replay
       setStoredSolution(response.moves)
     }
 
@@ -419,8 +490,9 @@ export function AIPanel({
     setPreviousAIResponse(null)
     setExplorationHistory([])
     setCumulativeExplorationMoves([])
-    setCommandCounts({ explore: 0, continue: 0, restart: 0 })
+    setCommandCounts({ explore: 0, continue: 0, restart: 0, submit: 0 })
     setAutoRun(false)
+    setResponseHistory([])
     setSessionMetrics(createSessionMetrics())
     onPathHighlight?.(null)
     onReset()
@@ -558,6 +630,19 @@ export function AIPanel({
     setParsedReasoning(response.parsedReasoning ?? null)
     setSessionMetrics((prev) => updateSessionMetrics(prev, response))
 
+    // Track response history
+    const command = response.explorationCommand || 'SOLUTION'
+    setResponseHistory((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        command: command === 'RESTART_EXPLORE' ? 'RESTART EXPLORE' : command,
+        tokens: response.outputTokens,
+        durationMs: response.durationMs,
+        moves: response.moves.length,
+      },
+    ])
+
     if (response.error || response.moves.length === 0) {
       setError(response.error || 'No moves returned from AI')
       setIsRunning(false)
@@ -566,7 +651,17 @@ export function AIPanel({
     }
 
     // Handle the response and update command counts
-    if (response.explorationCommand === 'EXPLORE') {
+    // SUBMIT means AI is finalizing their solution
+    if (response.explorationCommand === 'SUBMIT' || response.hasSubmit) {
+      // Final solution - possibly with RESTART
+      if (response.explorationCommand === 'RESTART') {
+        onReset()
+        setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
+      }
+      setIsExploring(false)
+      setStoredSolution(response.moves)
+      setCommandCounts((prev) => ({ ...prev, submit: prev.submit + 1 }))
+    } else if (response.explorationCommand === 'EXPLORE') {
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand(response.explorationCommand)
       setPreviousAIResponse(response.rawResponse)
@@ -587,15 +682,19 @@ export function AIPanel({
       setCumulativeExplorationMoves(response.moves)
       setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else if (response.explorationCommand === 'RESTART') {
-      // Final solution - restart and execute
+      // Restart without SUBMIT - still exploring
       onReset()
-      setIsExploring(false)
-      setStoredSolution(response.moves)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand('RESTART')
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves(response.moves)
       setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else {
-      // Normal solution (JSON format) - this continues from current state
-      setIsExploring(false)
-      setStoredSolution(response.moves)
+      // No command - continue exploring from current state
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(null)
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves((prev) => [...prev, ...response.moves])
     }
 
     // Create planned moves
@@ -632,32 +731,10 @@ export function AIPanel({
     executeNextMove,
   ])
 
-  // Auto-continue exploration when autoRun is enabled
+  // Keep ref in sync with handleContinueExploration
   useEffect(() => {
-    if (
-      autoRun &&
-      isExploring &&
-      !isRunning &&
-      !state?.done &&
-      initialPrompt &&
-      previousAIResponse
-    ) {
-      // Small delay before auto-continuing
-      const timer = setTimeout(() => {
-        handleContinueExploration()
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [
-    autoRun,
-    isExploring,
-    isRunning,
-    state?.done,
-    initialPrompt,
-    previousAIResponse,
-    handleContinueExploration,
-  ])
+    continueExplorationRef.current = handleContinueExploration
+  }, [handleContinueExploration])
 
   const togglePromptOption = (key: keyof PromptOptions) => {
     if (key === 'executionMode') return // Not a boolean option
@@ -890,7 +967,8 @@ export function AIPanel({
               </div>
               {(commandCounts.explore > 0 ||
                 commandCounts.continue > 0 ||
-                commandCounts.restart > 0) && (
+                commandCounts.restart > 0 ||
+                commandCounts.submit > 0) && (
                 <>
                   <div className="border-t border-border/50 my-1" />
                   <div className="flex justify-between">
@@ -905,6 +983,16 @@ export function AIPanel({
                     <span className="text-muted-foreground">RESTART actions:</span>
                     <span>{commandCounts.restart}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">SUBMIT actions:</span>
+                    <span>{commandCounts.submit}</span>
+                  </div>
+                  {responseHistory.length > 0 && (
+                    <div className="flex justify-between text-primary">
+                      <span>Total Moves:</span>
+                      <span>{responseHistory.reduce((sum, e) => sum + e.moves, 0)}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1251,6 +1339,45 @@ export function AIPanel({
                   <Copy className="h-3 w-3" />
                 )}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Response History for exploration mode */}
+        {promptOptions.enableExploration && responseHistory.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Response History
+            </div>
+            <div className="rounded-md border text-[10px]">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left px-2 py-1 text-muted-foreground font-normal">#</th>
+                    <th className="text-left px-2 py-1 text-muted-foreground font-normal">
+                      Command
+                    </th>
+                    <th className="text-right px-2 py-1 text-muted-foreground font-normal">
+                      Tokens
+                    </th>
+                    <th className="text-right px-2 py-1 text-muted-foreground font-normal">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {responseHistory.map((entry, idx) => (
+                    <tr key={entry.id} className="border-b border-border/30 last:border-0">
+                      <td className="px-2 py-1 text-muted-foreground">{idx + 1}</td>
+                      <td className="px-2 py-1 font-mono">{entry.command}</td>
+                      <td className="px-2 py-1 text-right font-mono">
+                        {entry.tokens.toLocaleString()}
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono">
+                        {formatDuration(entry.durationMs)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

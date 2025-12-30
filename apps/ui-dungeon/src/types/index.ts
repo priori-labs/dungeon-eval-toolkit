@@ -124,7 +124,7 @@ export interface PromptOptions {
 }
 
 // Exploration command types for AI responses
-export type ExplorationCommand = 'EXPLORE' | 'CONTINUE' | 'RESTART' | 'RESTART_EXPLORE' | 'SOLUTION'
+export type ExplorationCommand = 'EXPLORE' | 'CONTINUE' | 'RESTART' | 'RESTART_EXPLORE' | 'SUBMIT'
 
 // AI session metrics
 export interface SessionMetrics {

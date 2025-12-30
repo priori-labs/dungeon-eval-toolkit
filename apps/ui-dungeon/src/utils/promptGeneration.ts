@@ -249,33 +249,44 @@ function generateExplorationInstructions(): string {
 
   parts.push('You may explore the environment. Your reasoning will be included in follow-ups.')
   parts.push('')
+  parts.push('IMPORTANT: You must use SUBMIT to finalize your solution.')
+  parts.push('')
   parts.push('Ways to complete the puzzle:')
-  parts.push('1. One-shot: Provide moves without a command to solve immediately')
-  parts.push('2. Explore then restart: Use EXPLORE to test, then RESTART with full solution')
+  parts.push('1. One-shot: Provide moves with SUBMIT at the end')
   parts.push(
-    '3. Explore and continue: Use EXPLORE/CONTINUE until you reach the goal (no restart needed)',
+    '2. Explore then restart: Use EXPLORE to test, then RESTART with full solution + SUBMIT',
+  )
+  parts.push(
+    '3. Explore to goal: Use EXPLORE/CONTINUE until you reach X, then SUBMIT (no moves needed)',
   )
   parts.push('')
   parts.push('Response format (always JSON):')
-  parts.push('{"reasoning":"<your reasoning>","moves":["MOVE1","MOVE2",...]}')
+  parts.push('{"reasoning":"<your reasoning>","moves":["MOVE1","MOVE2",...,"SUBMIT"]}')
   parts.push('{"reasoning":"<your reasoning>","moves":["<COMMAND>","MOVE1","MOVE2",...]}')
   parts.push('')
-  parts.push('Commands (optional, as first element of moves array):')
-  parts.push('- (none): Execute moves as final solution')
+  parts.push('Commands (as first element of moves array):')
   parts.push('- EXPLORE: Execute moves, see result, continue exploring')
   parts.push('- CONTINUE: Continue from current position (after EXPLORE)')
-  parts.push('- RESTART: Reset puzzle and execute moves as final solution')
+  parts.push('- RESTART: Reset puzzle and execute moves')
   parts.push('- RESTART EXPLORE: Reset puzzle and continue exploring')
   parts.push('')
+  parts.push('Finalizing (as last element of moves array):')
+  parts.push('- SUBMIT: Finalize your solution (required to complete)')
+  parts.push('  - After moves: ["RIGHT","DOWN","SUBMIT"] submits those moves as final')
+  parts.push('  - After reaching goal via exploration: ["SUBMIT"] confirms completion')
+  parts.push('')
   parts.push('Examples:')
-  parts.push('{"reasoning":"I see the solution","moves":["RIGHT","DOWN","INTERACT","LEFT"]}')
+  parts.push(
+    '{"reasoning":"I see the solution","moves":["RIGHT","DOWN","INTERACT","LEFT","SUBMIT"]}',
+  )
   parts.push(
     '{"reasoning":"testing if I can push the block","moves":["EXPLORE","RIGHT","RIGHT","DOWN"]}',
   )
   parts.push('{"reasoning":"continuing to check the door","moves":["CONTINUE","UP","INTERACT"]}')
   parts.push(
-    '{"reasoning":"found it - final solution","moves":["RESTART","RIGHT","DOWN","INTERACT","LEFT"]}',
+    '{"reasoning":"found it - full solution","moves":["RESTART","RIGHT","DOWN","INTERACT","LEFT","SUBMIT"]}',
   )
+  parts.push('{"reasoning":"I reached the goal, confirming","moves":["SUBMIT"]}')
 
   return parts.join('\n')
 }
@@ -380,6 +391,7 @@ export interface CommandCounts {
   explore: number
   continue: number
   restart: number
+  submit: number
 }
 
 /**
@@ -411,12 +423,14 @@ export function generateExplorationContinuationPrompt(
 
   // Show command usage stats if available
   if (commandCounts) {
-    const totalCommands = commandCounts.explore + commandCounts.continue + commandCounts.restart
+    const totalCommands =
+      commandCounts.explore + commandCounts.continue + commandCounts.restart + commandCounts.submit
     parts.push('=== COMMAND HISTORY ===')
     parts.push(`Total commands used: ${totalCommands}`)
     parts.push(`- EXPLORE: ${commandCounts.explore}`)
     parts.push(`- CONTINUE: ${commandCounts.continue}`)
     parts.push(`- RESTART: ${commandCounts.restart}`)
+    parts.push(`- SUBMIT: ${commandCounts.submit}`)
     parts.push('')
   }
 
@@ -521,18 +535,24 @@ export function generateExplorationContinuationPrompt(
   parts.push('=== CONTINUE ===')
   if (state.done) {
     if (state.success) {
-      parts.push('You solved the puzzle!')
+      parts.push('You reached the goal! Use SUBMIT to finalize your solution.')
       parts.push('If you want to try a different solution, use RESTART.')
+      parts.push('')
+      parts.push('Response format: {"reasoning":"...","moves":["SUBMIT"]}')
     } else {
       parts.push('You died. Use RESTART or RESTART EXPLORE to try again.')
+      parts.push('')
+      parts.push('Response format: {"reasoning":"...","moves":["RESTART","MOVE1",...,"SUBMIT"]}')
     }
   } else {
     parts.push('Options:')
-    parts.push('- CONTINUE: Keep going from here (reach goal to complete)')
+    parts.push('- CONTINUE: Keep going from here')
     parts.push('- EXPLORE: Try more moves, see result')
-    parts.push('- RESTART: Reset and submit final solution')
+    parts.push('- RESTART: Reset puzzle')
+    parts.push('- SUBMIT: Finalize solution (use as last move when ready)')
     parts.push('')
     parts.push('Response format: {"reasoning":"...","moves":["COMMAND","MOVE1","MOVE2",...]}')
+    parts.push('To submit: {"reasoning":"...","moves":["MOVE1","MOVE2",...,"SUBMIT"]}')
   }
 
   return parts.join('\n')
