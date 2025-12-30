@@ -340,9 +340,10 @@ function tryInteract(state: GameState): InteractResult {
           openedDoor: adjPos,
         }
       }
+      // Don't have the key - treat as no-op (action succeeds but nothing happens)
       return {
-        success: false,
-        message: `Need ${doorColor.toLowerCase()} key`,
+        success: true,
+        message: `Interact (no-op: need ${doorColor.toLowerCase()} key)`,
       }
     }
   }

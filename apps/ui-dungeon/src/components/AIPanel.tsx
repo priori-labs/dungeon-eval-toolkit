@@ -33,13 +33,12 @@ import type {
   SessionMetrics,
 } from '@src/types'
 import {
+  type CommandCounts,
   DEFAULT_PROMPT_OPTIONS,
   type ExplorationAttempt,
   gameStateToAscii,
-  gameStateToObfuscatedAscii,
   generateDungeonPrompt,
   generateExplorationContinuationPrompt,
-  generateFewShotPrompt,
 } from '@src/utils/promptGeneration'
 import { AlertCircle, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -89,6 +88,7 @@ export function AIPanel({
   const [copiedContinuePrompt, setCopiedContinuePrompt] = useState(false)
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
+  const [copiedRawResponse, setCopiedRawResponse] = useState(false)
   const [wasManuallyStopped, setWasManuallyStopped] = useState(false)
   const [storedSolution, setStoredSolution] = useState<Action[]>([])
   const [showFullPath, setShowFullPath] = useState(false)
@@ -104,6 +104,14 @@ export function AIPanel({
   const [explorationHistory, setExplorationHistory] = useState<ExplorationAttempt[]>([])
   // Cumulative moves in current exploration path (resets on RESTART)
   const [cumulativeExplorationMoves, setCumulativeExplorationMoves] = useState<Action[]>([])
+  // Track command usage counts
+  const [commandCounts, setCommandCounts] = useState<CommandCounts>({
+    explore: 0,
+    continue: 0,
+    restart: 0,
+  })
+  // Auto-run mode for exploration
+  const [autoRun, setAutoRun] = useState(false)
 
   const abortRef = useRef(false)
   const isRunningRef = useRef(false)
@@ -162,6 +170,8 @@ export function AIPanel({
       setPreviousAIResponse(null)
       setExplorationHistory([])
       setCumulativeExplorationMoves([])
+      setCommandCounts({ explore: 0, continue: 0, restart: 0 })
+      setAutoRun(false)
       abortRef.current = true
       isRunningRef.current = false
       isReplayingRef.current = false
@@ -302,9 +312,7 @@ export function AIPanel({
     setSessionMetrics(createSessionMetrics())
 
     // Generate and store the initial prompt for potential continuation
-    const prompt = promptOptions.fewShotExamples
-      ? generateFewShotPrompt(state, promptOptions)
-      : generateDungeonPrompt(state, promptOptions)
+    const prompt = generateDungeonPrompt(state, promptOptions)
     setInitialPrompt(prompt)
 
     setInflightStartTime(Date.now())
@@ -332,26 +340,33 @@ export function AIPanel({
       return
     }
 
-    // Handle exploration commands
-    if (response.explorationCommand === 'EXPLORE' || response.explorationCommand === 'CONTINUE') {
-      // Execute exploration moves and wait for continue
+    // Handle exploration commands and update counts
+    if (response.explorationCommand === 'EXPLORE') {
       setIsExploring(true)
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand(response.explorationCommand)
       setPreviousAIResponse(response.rawResponse)
-      // Initialize cumulative moves for replay
       setCumulativeExplorationMoves(response.moves)
+      setCommandCounts((prev) => ({ ...prev, explore: prev.explore + 1 }))
+    } else if (response.explorationCommand === 'CONTINUE') {
+      setIsExploring(true)
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(response.explorationCommand)
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves(response.moves)
+      setCommandCounts((prev) => ({ ...prev, continue: prev.continue + 1 }))
     } else if (response.explorationCommand === 'RESTART_EXPLORE') {
       // Reset was already done at start, execute exploration moves
       setIsExploring(true)
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand('RESTART_EXPLORE')
       setPreviousAIResponse(response.rawResponse)
-      // Initialize cumulative moves for replay
       setCumulativeExplorationMoves(response.moves)
+      setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else if (response.explorationCommand === 'RESTART') {
       // This is a final solution after restart - treat as normal solution
       setStoredSolution(response.moves)
+      setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else {
       // Normal solution - store for replay
       setStoredSolution(response.moves)
@@ -404,6 +419,8 @@ export function AIPanel({
     setPreviousAIResponse(null)
     setExplorationHistory([])
     setCumulativeExplorationMoves([])
+    setCommandCounts({ explore: 0, continue: 0, restart: 0 })
+    setAutoRun(false)
     setSessionMetrics(createSessionMetrics())
     onPathHighlight?.(null)
     onReset()
@@ -493,10 +510,7 @@ export function AIPanel({
     const aiReasoning = nativeReasoning || parsedReasoning || previousAIResponse
 
     // Record this exploration attempt to history before continuing
-    // Use obfuscated board state in few-shot mode
-    const boardStateAfter = promptOptions.fewShotExamples
-      ? gameStateToObfuscatedAscii(state)
-      : gameStateToAscii(state)
+    const boardStateAfter = gameStateToAscii(state)
     const currentAttempt: ExplorationAttempt = {
       moves: explorationMoves,
       result: state.done ? (state.success ? 'success' : 'gameover') : 'continue',
@@ -518,6 +532,7 @@ export function AIPanel({
       initialPrompt,
       aiReasoning,
       updatedHistory.slice(0, -1), // Pass history excluding the current attempt (which is shown in EXPLORATION RESULT)
+      commandCounts,
     )
 
     setInflightStartTime(Date.now())
@@ -550,27 +565,33 @@ export function AIPanel({
       return
     }
 
-    // Handle the response
-    if (response.explorationCommand === 'EXPLORE' || response.explorationCommand === 'CONTINUE') {
-      // Continue exploring from current state
+    // Handle the response and update command counts
+    if (response.explorationCommand === 'EXPLORE') {
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand(response.explorationCommand)
       setPreviousAIResponse(response.rawResponse)
-      // Add to cumulative moves for replay
       setCumulativeExplorationMoves((prev) => [...prev, ...response.moves])
+      setCommandCounts((prev) => ({ ...prev, explore: prev.explore + 1 }))
+    } else if (response.explorationCommand === 'CONTINUE') {
+      setExplorationMoves(response.moves.map((m) => m.toString()))
+      setLastExplorationCommand(response.explorationCommand)
+      setPreviousAIResponse(response.rawResponse)
+      setCumulativeExplorationMoves((prev) => [...prev, ...response.moves])
+      setCommandCounts((prev) => ({ ...prev, continue: prev.continue + 1 }))
     } else if (response.explorationCommand === 'RESTART_EXPLORE') {
       // Restart and explore
       onReset()
       setExplorationMoves(response.moves.map((m) => m.toString()))
       setLastExplorationCommand('RESTART_EXPLORE')
       setPreviousAIResponse(response.rawResponse)
-      // Reset cumulative moves since we're restarting
       setCumulativeExplorationMoves(response.moves)
+      setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else if (response.explorationCommand === 'RESTART') {
       // Final solution - restart and execute
       onReset()
       setIsExploring(false)
       setStoredSolution(response.moves)
+      setCommandCounts((prev) => ({ ...prev, restart: prev.restart + 1 }))
     } else {
       // Normal solution (JSON format) - this continues from current state
       setIsExploring(false)
@@ -605,9 +626,37 @@ export function AIPanel({
     promptOptions,
     explorationMoves,
     explorationHistory,
+    commandCounts,
     model,
     onReset,
     executeNextMove,
+  ])
+
+  // Auto-continue exploration when autoRun is enabled
+  useEffect(() => {
+    if (
+      autoRun &&
+      isExploring &&
+      !isRunning &&
+      !state?.done &&
+      initialPrompt &&
+      previousAIResponse
+    ) {
+      // Small delay before auto-continuing
+      const timer = setTimeout(() => {
+        handleContinueExploration()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [
+    autoRun,
+    isExploring,
+    isRunning,
+    state?.done,
+    initialPrompt,
+    previousAIResponse,
+    handleContinueExploration,
   ])
 
   const togglePromptOption = (key: keyof PromptOptions) => {
@@ -618,12 +667,8 @@ export function AIPanel({
     }))
   }
 
-  // Generate preview prompt for copy - use few-shot prompt when enabled
-  const previewPrompt = state
-    ? promptOptions.fewShotExamples
-      ? generateFewShotPrompt(state, promptOptions)
-      : generateDungeonPrompt(state, promptOptions)
-    : null
+  // Generate preview prompt for copy
+  const previewPrompt = state ? generateDungeonPrompt(state, promptOptions) : null
 
   const handleCopyPrompt = useCallback(async () => {
     if (!previewPrompt) return
@@ -650,6 +695,7 @@ export function AIPanel({
       initialPrompt,
       aiReasoning ?? undefined,
       explorationHistory, // Include full history for preview
+      commandCounts,
     )
     try {
       await navigator.clipboard.writeText(continuationPrompt)
@@ -665,6 +711,7 @@ export function AIPanel({
     promptOptions,
     explorationMoves,
     explorationHistory,
+    commandCounts,
     initialPrompt,
     nativeReasoning,
     parsedReasoning,
@@ -692,6 +739,17 @@ export function AIPanel({
       console.error('Failed to copy:', err)
     }
   }, [parsedReasoning])
+
+  const handleCopyRawResponse = useCallback(async () => {
+    if (!rawResponse) return
+    try {
+      await navigator.clipboard.writeText(rawResponse)
+      setCopiedRawResponse(true)
+      setTimeout(() => setCopiedRawResponse(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [rawResponse])
 
   // Computed states
   const aiHasRun = plannedMoves.length > 0
@@ -830,6 +888,25 @@ export function AIPanel({
                 <span>Human Time (1000 wpm):</span>
                 <span>{formatDuration((sessionMetrics.estimatedWords / 1000) * 60 * 1000)}</span>
               </div>
+              {(commandCounts.explore > 0 ||
+                commandCounts.continue > 0 ||
+                commandCounts.restart > 0) && (
+                <>
+                  <div className="border-t border-border/50 my-1" />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">EXPLORE actions:</span>
+                    <span>{commandCounts.explore}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">CONTINUE actions:</span>
+                    <span>{commandCounts.continue}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">RESTART actions:</span>
+                    <span>{commandCounts.restart}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -870,52 +947,36 @@ export function AIPanel({
         <div className="space-y-1.5">
           <Label className="text-xs">Prompt Options</Label>
           <div className="flex flex-col gap-2">
-            {/* ASCII Grid option */}
+            {/* Add Instructions option */}
             <div className="flex items-center gap-2">
               <Checkbox
-                id="asciiGrid"
-                checked={promptOptions.asciiGrid}
-                onCheckedChange={() => togglePromptOption('asciiGrid')}
+                id="addInstructions"
+                checked={promptOptions.addInstructions}
+                onCheckedChange={() => togglePromptOption('addInstructions')}
                 disabled={isRunning || plannedMoves.length > 0}
                 className="h-3.5 w-3.5"
               />
               <Label
-                htmlFor="asciiGrid"
+                htmlFor="addInstructions"
                 className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
               >
-                ASCII Grid
+                Add Instructions
               </Label>
             </div>
-            {/* Coordinate Locations option */}
+            {/* Add Examples option */}
             <div className="flex items-center gap-2">
               <Checkbox
-                id="coordinateLocations"
-                checked={promptOptions.coordinateLocations}
-                onCheckedChange={() => togglePromptOption('coordinateLocations')}
+                id="addExamples"
+                checked={promptOptions.addExamples}
+                onCheckedChange={() => togglePromptOption('addExamples')}
                 disabled={isRunning || plannedMoves.length > 0}
                 className="h-3.5 w-3.5"
               />
               <Label
-                htmlFor="coordinateLocations"
+                htmlFor="addExamples"
                 className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
               >
-                Coordinate Locations
-              </Label>
-            </div>
-            {/* Few Shot Examples option */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="fewShotExamples"
-                checked={promptOptions.fewShotExamples}
-                onCheckedChange={() => togglePromptOption('fewShotExamples')}
-                disabled={isRunning || plannedMoves.length > 0}
-                className="h-3.5 w-3.5"
-              />
-              <Label
-                htmlFor="fewShotExamples"
-                className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
-              >
-                Few Shot Examples
+                Add Examples
               </Label>
             </div>
             {/* Enable Exploration option */}
@@ -1003,6 +1064,20 @@ export function AIPanel({
               >
                 Run AI Agent
               </Button>
+              {promptOptions.enableExploration && (
+                <Button
+                  onClick={() => {
+                    setAutoRun(true)
+                    handleStart()
+                  }}
+                  disabled={disabled || !state || !hasApiKey || state.success}
+                  variant="secondary"
+                  className="w-full"
+                  size="sm"
+                >
+                  Auto-Run AI Agent
+                </Button>
+              )}
               <Button
                 onClick={handleCopyPrompt}
                 variant="outline"
@@ -1154,14 +1229,30 @@ export function AIPanel({
 
         {/* Raw response (collapsible) */}
         {rawResponse && (
-          <details className="text-xs">
-            <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
-              Raw AI Response
-            </summary>
-            <pre className="bg-muted/20 rounded-md p-2 mt-1 text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap max-h-24 overflow-y-auto">
-              {rawResponse}
-            </pre>
-          </details>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <details className="text-xs flex-1">
+                <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
+                  Raw AI Response
+                </summary>
+                <pre className="bg-muted/20 rounded-md p-2 mt-1 text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap max-h-24 overflow-y-auto">
+                  {rawResponse}
+                </pre>
+              </details>
+              <button
+                type="button"
+                onClick={handleCopyRawResponse}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                title="Copy raw response"
+              >
+                {copiedRawResponse ? (
+                  <span className="text-[10px] text-green-400">Copied!</span>
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

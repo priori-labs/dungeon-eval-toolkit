@@ -116,13 +116,17 @@ export function parseAIResponse(content: string): ParsedAIResponse {
 
       // Check if first element is a command
       if (movesToParse.length > 0 && typeof movesToParse[0] === 'string') {
-        const firstElement = movesToParse[0].toUpperCase()
+        const firstElement = movesToParse[0].toUpperCase().trim()
 
-        if (firstElement === 'RESTART' && movesToParse.length > 1) {
+        // Handle "RESTART EXPLORE" as a single string
+        if (firstElement === 'RESTART EXPLORE') {
+          explorationCommand = 'RESTART_EXPLORE'
+          movesToParse = movesToParse.slice(1)
+        } else if (firstElement === 'RESTART' && movesToParse.length > 1) {
           const secondElement =
-            typeof movesToParse[1] === 'string' ? movesToParse[1].toUpperCase() : ''
+            typeof movesToParse[1] === 'string' ? movesToParse[1].toUpperCase().trim() : ''
           if (secondElement === 'EXPLORE') {
-            // RESTART EXPLORE command
+            // RESTART EXPLORE as separate elements
             explorationCommand = 'RESTART_EXPLORE'
             movesToParse = movesToParse.slice(2)
           } else {
@@ -130,6 +134,10 @@ export function parseAIResponse(content: string): ParsedAIResponse {
             explorationCommand = 'RESTART'
             movesToParse = movesToParse.slice(1)
           }
+        } else if (firstElement === 'RESTART') {
+          // RESTART with no following moves or non-EXPLORE second element
+          explorationCommand = 'RESTART'
+          movesToParse = movesToParse.slice(1)
         } else if (firstElement === 'EXPLORE') {
           explorationCommand = 'EXPLORE'
           movesToParse = movesToParse.slice(1)

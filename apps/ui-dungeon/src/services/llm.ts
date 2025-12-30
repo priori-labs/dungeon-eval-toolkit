@@ -6,11 +6,7 @@ import type {
   PromptOptions,
   SessionMetrics,
 } from '@src/types'
-import {
-  generateDungeonPrompt,
-  generateFewShotPrompt,
-  generateMoveByMovePrompt,
-} from '@src/utils/promptGeneration'
+import { generateDungeonPrompt } from '@src/utils/promptGeneration'
 import { parseAIResponse } from '@src/utils/responseParser'
 
 function getApiKey(): string | undefined {
@@ -57,10 +53,7 @@ export async function getDungeonSolution(
     }
     const client = createOpenRouterClient(apiKey)
 
-    // Use few-shot prompt when enabled, otherwise use standard prompt
-    const prompt = options.fewShotExamples
-      ? generateFewShotPrompt(state, options)
-      : generateDungeonPrompt(state, options)
+    const prompt = generateDungeonPrompt(state, options)
 
     const response = await client.chat.completions.create({
       model,
@@ -198,87 +191,6 @@ export async function continueExploration(
   } catch (error) {
     const durationMs = Date.now() - startTime
     console.error('[LLM Error - Exploration]', error)
-    return {
-      moves: [],
-      rawResponse: '',
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cost: 0,
-      durationMs,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-/**
- * Get the next move from the LLM (move-by-move mode).
- */
-export async function getNextMove(
-  state: GameState,
-  model: string,
-  moveHistory: string[],
-): Promise<LLMResponse> {
-  const startTime = Date.now()
-
-  try {
-    const apiKey = getApiKey()
-    if (!apiKey) {
-      throw new Error('API key not configured')
-    }
-    const client = createOpenRouterClient(apiKey)
-
-    const prompt = generateMoveByMovePrompt(state, moveHistory)
-
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 50, // We only need one move
-    })
-
-    const durationMs = Date.now() - startTime
-    const message = response.choices[0]?.message
-    const content = message?.content ?? ''
-    const usage = response.usage
-
-    // Extract native reasoning from OpenRouter response (some models like DeepSeek provide this)
-    // biome-ignore lint/suspicious/noExplicitAny: OpenRouter-specific field not in OpenAI types
-    const nativeReasoning = (message as any)?.reasoning as string | undefined
-
-    const parsed = parseAIResponse(content)
-
-    // Log full response data for debugging
-    console.log('[LLM Response - Move]', {
-      model,
-      message,
-      usage,
-      durationMs,
-    })
-
-    const inputTokens = usage?.prompt_tokens ?? 0
-    const outputTokens = usage?.completion_tokens ?? 0
-    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
-    const reasoningTokens = (usage as any)?.completion_tokens_details?.reasoning_tokens ?? 0
-    // biome-ignore lint/suspicious/noExplicitAny: Provider-specific field
-    const actualCost = (usage as any)?.cost as number | undefined
-    const cost = actualCost ?? estimateCost(model, inputTokens, outputTokens)
-
-    return {
-      moves: parsed.moves.slice(0, 1), // Only take first move
-      rawResponse: content,
-      nativeReasoning: nativeReasoning || undefined,
-      parsedReasoning: parsed.reasoning,
-      inputTokens,
-      outputTokens,
-      reasoningTokens,
-      cost,
-      durationMs,
-      error: parsed.error,
-    }
-  } catch (error) {
-    const durationMs = Date.now() - startTime
-    console.error('[LLM Error - Move]', error)
     return {
       moves: [],
       rawResponse: '',

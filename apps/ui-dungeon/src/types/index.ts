@@ -114,13 +114,12 @@ export interface ActionResult {
 
 // AI prompt options
 export interface PromptOptions {
-  asciiGrid: boolean
-  coordinateFormat: boolean
-  includeNotationGuide: boolean
   executionMode: 'fullSolution' | 'moveByMove'
-  cipherSymbols: boolean
-  coordinateLocations: boolean
-  fewShotExamples: boolean
+  /** Add explicit instructions, labels, and legend */
+  addInstructions: boolean
+  /** Add few-shot gameplay examples */
+  addExamples: boolean
+  /** Enable exploration mode with EXPLORE/CONTINUE/RESTART commands */
   enableExploration: boolean
 }
 
