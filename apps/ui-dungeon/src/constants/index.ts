@@ -9,8 +9,6 @@ export const ACTION_KEYS: Record<string, Action> = {
   ArrowDown: 'DOWN',
   ArrowLeft: 'LEFT',
   ArrowRight: 'RIGHT',
-  e: 'INTERACT',
-  E: 'INTERACT',
 }
 
 // Move key mappings (arrow keys only - for backwards compatibility)
@@ -39,8 +37,6 @@ export const DUNGEON_NOTATION: Record<string, Action> = {
   L: 'LEFT',
   r: 'RIGHT',
   R: 'RIGHT',
-  i: 'INTERACT',
-  I: 'INTERACT',
 }
 
 // AI move execution delay (ms)

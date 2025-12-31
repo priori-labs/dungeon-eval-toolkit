@@ -34,7 +34,6 @@ export const Action = {
   DOWN: 'DOWN',
   LEFT: 'LEFT',
   RIGHT: 'RIGHT',
-  INTERACT: 'INTERACT',
 } as const
 export type Action = (typeof Action)[keyof typeof Action]
 

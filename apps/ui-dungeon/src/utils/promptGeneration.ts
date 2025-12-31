@@ -157,34 +157,32 @@ function generateExamples(semantic = false): string {
     parts.push('#..@..#')
     parts.push('')
 
-    // Example 2: Collecting a key and opening a door
+    // Example 2: Collecting a key and opening a door (doors open automatically when you have the key)
     parts.push('[EXAMPLE 2]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('#@R.r..G#')
     parts.push('')
     parts.push('Move Input:')
-    parts.push('RIGHT RIGHT INTERACT RIGHT')
+    parts.push('RIGHT RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('#...@..G#')
+    parts.push('#....@.G#')
     parts.push('')
 
-    // Example 3: Complex navigation
+    // Example 3: Collecting key then moving through door
     parts.push('[EXAMPLE 3]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('@.r..')
-    parts.push('.O#..')
+    parts.push('..#..')
     parts.push('.R#..')
     parts.push('')
     parts.push('Move Input:')
-    parts.push(
-      'DOWN DOWN RIGHT LEFT UP UP RIGHT INTERACT LEFT DOWN DOWN RIGHT UP LEFT UP RIGHT RIGHT RIGHT',
-    )
+    parts.push('DOWN DOWN RIGHT UP UP RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('...@O')
+    parts.push('....@')
     parts.push('..#..')
     parts.push('..#..')
     parts.push('')
@@ -202,17 +200,17 @@ function generateExamples(semantic = false): string {
     parts.push('#.[..!.@.#')
     parts.push('')
 
-    // Example 5: Key-door matching
+    // Example 5: Key-door matching (doors open automatically when you move into them with key)
     parts.push('[EXAMPLE 5]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('#@R.r.B.b.G#')
     parts.push('')
     parts.push('Move Input:')
-    parts.push('RIGHT RIGHT INTERACT RIGHT RIGHT RIGHT RIGHT INTERACT')
+    parts.push('RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('#......@..G#')
+    parts.push('#........@G#')
     parts.push('')
 
     // Example 6: Trap = GAMEOVER
@@ -258,34 +256,32 @@ function generateExamples(semantic = false): string {
     parts.push('#..@..#')
     parts.push('')
 
-    // Example 2: Collecting a key and opening a door
+    // Example 2: Collecting a key and opening a door (doors open automatically when you have the key)
     parts.push('[EXAMPLE 2]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('#@a.1..X#')
     parts.push('')
     parts.push('Move Input:')
-    parts.push('RIGHT RIGHT INTERACT RIGHT')
+    parts.push('RIGHT RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('#...@..X#')
+    parts.push('#....@.X#')
     parts.push('')
 
-    // Example 3: Complex navigation
+    // Example 3: Collecting key then moving through door
     parts.push('[EXAMPLE 3]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('@.1..')
-    parts.push('.*#..')
+    parts.push('..#..')
     parts.push('.a#..')
     parts.push('')
     parts.push('Move Input:')
-    parts.push(
-      'DOWN DOWN RIGHT LEFT UP UP RIGHT INTERACT LEFT DOWN DOWN RIGHT UP LEFT UP RIGHT RIGHT RIGHT',
-    )
+    parts.push('DOWN DOWN RIGHT UP UP RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('...@*')
+    parts.push('....@')
     parts.push('..#..')
     parts.push('..#..')
     parts.push('')
@@ -303,17 +299,17 @@ function generateExamples(semantic = false): string {
     parts.push('#.(..^.@.#')
     parts.push('')
 
-    // Example 5: Key-door matching
+    // Example 5: Key-door matching (doors open automatically when you move into them with key)
     parts.push('[EXAMPLE 5]:')
     parts.push('')
     parts.push('Initial Board State:')
     parts.push('#@a.1.b.2.X#')
     parts.push('')
     parts.push('Move Input:')
-    parts.push('RIGHT RIGHT INTERACT RIGHT RIGHT RIGHT RIGHT INTERACT')
+    parts.push('RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT')
     parts.push('')
     parts.push('New Board State:')
-    parts.push('#......@..X#')
+    parts.push('#........@X#')
     parts.push('')
 
     // Example 6: Trap = GAMEOVER
@@ -364,11 +360,12 @@ function generateInstructions(semantic = false): string {
   // Rules
   parts.push('## Rules')
   parts.push('- You can move UP, DOWN, LEFT, or RIGHT')
-  parts.push('- Use INTERACT to open adjacent doors (requires matching key)')
 
   if (semantic) {
     parts.push('- **Keys** (R,B,N,Y): Walk onto a key tile to collect it (tile becomes empty)')
-    parts.push('- **Doors** (r,b,n,y): Block movement when closed. Use INTERACT with matching key')
+    parts.push(
+      '- **Doors** (r,b,n,y): Moving into a door with the matching key opens it automatically. One key can open multiple doors of the same color.',
+    )
     parts.push(
       '  - Red key (R) opens red door (r), Blue key (B) opens blue door (b), Green key (N) opens green door (n), Yellow key (Y) opens yellow door (y)',
     )
@@ -378,7 +375,9 @@ function generateInstructions(semantic = false): string {
     parts.push('- **Goal** (G): Reach this to win')
   } else {
     parts.push('- **Keys** (a,b,c,d): Walk onto a key tile to collect it (tile becomes empty)')
-    parts.push('- **Doors** (1,2,3,4): Block movement when closed. Use INTERACT with matching key')
+    parts.push(
+      '- **Doors** (1,2,3,4): Moving into a door with the matching key opens it automatically. One key can open multiple doors of the same type.',
+    )
     parts.push('  - Key a opens door 1, key b opens door 2, key c opens door 3, key d opens door 4')
     parts.push('- **Blocks** (*): Can be pushed into empty spaces or onto traps')
     parts.push('- **Traps** (^): Deadly to player. Pushing a block onto a trap neutralizes both')
@@ -449,15 +448,13 @@ function generateExplorationInstructions(): string {
   parts.push('  - After reaching goal via exploration: ["SUBMIT"] confirms completion')
   parts.push('')
   parts.push('Examples:')
-  parts.push(
-    '{"reasoning":"I see the solution","moves":["RIGHT","DOWN","INTERACT","LEFT","SUBMIT"]}',
-  )
+  parts.push('{"reasoning":"I see the solution","moves":["RIGHT","DOWN","LEFT","SUBMIT"]}')
   parts.push(
     '{"reasoning":"testing if I can push the block","moves":["EXPLORE","RIGHT","RIGHT","DOWN"]}',
   )
-  parts.push('{"reasoning":"continuing to check the door","moves":["CONTINUE","UP","INTERACT"]}')
+  parts.push('{"reasoning":"continuing to the door","moves":["CONTINUE","UP","RIGHT"]}')
   parts.push(
-    '{"reasoning":"found it - full solution","moves":["RESTART","RIGHT","DOWN","INTERACT","LEFT","SUBMIT"]}',
+    '{"reasoning":"found it - full solution","moves":["RESTART","RIGHT","DOWN","LEFT","SUBMIT"]}',
   )
   parts.push('{"reasoning":"I reached the goal, confirming","moves":["SUBMIT"]}')
 
@@ -506,7 +503,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   parts.push('')
 
   // Output format instructions
-  parts.push('Available Moves: UP, DOWN, LEFT, RIGHT, INTERACT')
+  parts.push('Available Moves: UP, DOWN, LEFT, RIGHT')
   parts.push('')
 
   const goalSymbol = semantic ? 'G' : 'X'
@@ -517,7 +514,7 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
     parts.push(`Provide a solution sequence to reach ${goalSymbol}.`)
     parts.push('')
     parts.push('Return ONLY a JSON object in this exact format (no other text):')
-    parts.push('{"reasoning":"<your reasoning>","moves":["UP","RIGHT","INTERACT","DOWN","LEFT"]}')
+    parts.push('{"reasoning":"<your reasoning>","moves":["UP","RIGHT","DOWN","LEFT"]}')
   } else {
     parts.push('Provide the next move.')
     parts.push('')

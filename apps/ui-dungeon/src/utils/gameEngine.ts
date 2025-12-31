@@ -106,21 +106,15 @@ export function executeAction(
   let teleported = false
 
   // Handle movement actions
-  if (action === 'UP' || action === 'DOWN' || action === 'LEFT' || action === 'RIGHT') {
-    const delta = DIRECTION_DELTAS[action]
-    const moveResult = tryMove(newState, delta)
-    actionSuccess = moveResult.success
-    message = moveResult.message
-    collectedKey = moveResult.collectedKey
-    pushedBlock = moveResult.pushedBlock
-    neutralizedTrap = moveResult.neutralizedTrap
-    teleported = moveResult.teleported || false
-  } else if (action === 'INTERACT') {
-    const interactResult = tryInteract(newState)
-    actionSuccess = interactResult.success
-    message = interactResult.message
-    openedDoor = interactResult.openedDoor
-  }
+  const delta = DIRECTION_DELTAS[action]
+  const moveResult = tryMove(newState, delta)
+  actionSuccess = moveResult.success
+  message = moveResult.message
+  collectedKey = moveResult.collectedKey
+  openedDoor = moveResult.openedDoor
+  pushedBlock = moveResult.pushedBlock
+  neutralizedTrap = moveResult.neutralizedTrap
+  teleported = moveResult.teleported || false
 
   // Check if player reached the goal
   const currentTile = getTileAt(newState.grid, newState.playerPosition)
@@ -171,6 +165,7 @@ interface MoveResult {
   success: boolean
   message: string
   collectedKey?: KeyColor
+  openedDoor?: Position
   pushedBlock?: { from: Position; to: Position }
   neutralizedTrap?: Position
   teleported?: boolean
@@ -195,6 +190,7 @@ function tryMove(state: GameState, delta: Position): MoveResult {
   const targetTile = getTileAt(state.grid, newPos)
   let pushedBlock: { from: Position; to: Position } | undefined
   let neutralizedTrap: Position | undefined
+  let openedDoor: Position | undefined
 
   // Handle block pushing first (before checking passability)
   if (targetTile.type === TileType.BLOCK && !targetTile.isFixed) {
@@ -207,10 +203,27 @@ function tryMove(state: GameState, delta: Position): MoveResult {
     neutralizedTrap = pushResult.neutralizedTrap
   }
 
-  // Check if tile is passable (after handling block pushing)
+  // Handle closed doors - auto-open if player has matching key
+  const tileAfterPush = getTileAt(state.grid, newPos)
+  if (tileAfterPush.type.startsWith('DOOR_') && !tileAfterPush.isOpen) {
+    const doorColor = tileAfterPush.type.split('_')[1] as KeyColor
+    if (state.inventory.keys.includes(doorColor)) {
+      // Open the door (turn it into empty tile)
+      state.grid[newPos.y][newPos.x] = { type: TileType.EMPTY }
+      openedDoor = { ...newPos }
+    } else {
+      // Don't have the key - treat as no-op
+      return {
+        success: true,
+        message: `Moved ${dirName} (no-op: need ${doorColor.toLowerCase()} key)`,
+      }
+    }
+  }
+
+  // Check if tile is passable (after handling block pushing and door opening)
   const finalTile = getTileAt(state.grid, newPos)
   if (!isPassable(finalTile)) {
-    // Wall or closed door - treat as no-op (player stays in place)
+    // Wall - treat as no-op (player stays in place)
     return { success: true, message: `Moved ${dirName} (no-op: blocked)` }
   }
 
@@ -239,6 +252,10 @@ function tryMove(state: GameState, delta: Position): MoveResult {
   }
 
   let message = `Moved ${dirName}`
+  if (openedDoor) {
+    const doorColor = tileAfterPush.type.split('_')[1] as KeyColor
+    message = `Opened ${doorColor.toLowerCase()} door and moved ${dirName}`
+  }
   if (collectedKey) {
     message = `Collected ${collectedKey.toLowerCase()} key`
   }
@@ -250,6 +267,7 @@ function tryMove(state: GameState, delta: Position): MoveResult {
     success: true,
     message,
     collectedKey,
+    openedDoor,
     pushedBlock,
     neutralizedTrap,
     teleported,
@@ -300,56 +318,6 @@ function tryPushBlock(state: GameState, blockPos: Position, delta: Position): Pu
   state.grid[blockPos.y][blockPos.x] = { type: TileType.EMPTY }
 
   return { success: true, message: 'Pushed block', pushedBlock, neutralizedTrap }
-}
-
-interface InteractResult {
-  success: boolean
-  message: string
-  openedDoor?: Position
-}
-
-/**
- * Attempt to interact with adjacent tiles
- */
-function tryInteract(state: GameState): InteractResult {
-  const pos = state.playerPosition
-
-  // Check adjacent tiles for doors
-  const directions = [
-    { x: 0, y: -1 }, // up
-    { x: 0, y: 1 }, // down
-    { x: -1, y: 0 }, // left
-    { x: 1, y: 0 }, // right
-  ]
-
-  for (const dir of directions) {
-    const adjPos = { x: pos.x + dir.x, y: pos.y + dir.y }
-    if (!isInBounds(state, adjPos)) continue
-
-    const adjTile = getTileAt(state.grid, adjPos)
-
-    // Try to open door
-    if (adjTile.type.startsWith('DOOR_') && !adjTile.isOpen) {
-      const doorColor = adjTile.type.split('_')[1] as KeyColor
-      if (state.inventory.keys.includes(doorColor)) {
-        // Door becomes empty tile when opened
-        state.grid[adjPos.y][adjPos.x] = { type: TileType.EMPTY }
-        return {
-          success: true,
-          message: `Opened ${doorColor.toLowerCase()} door`,
-          openedDoor: adjPos,
-        }
-      }
-      // Don't have the key - treat as no-op (action succeeds but nothing happens)
-      return {
-        success: true,
-        message: `Interact (no-op: need ${doorColor.toLowerCase()} key)`,
-      }
-    }
-  }
-
-  // No interactable object found - treat as no-op (still a valid action)
-  return { success: true, message: 'Interact (no-op: nothing to interact with)' }
 }
 
 /**

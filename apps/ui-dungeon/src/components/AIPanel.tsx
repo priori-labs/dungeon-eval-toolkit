@@ -266,7 +266,6 @@ export function AIPanel({
           }
         }
       }
-      // INTERACT doesn't move, so we skip it
     }
 
     onPathHighlight?.(positions)
@@ -780,7 +779,7 @@ export function AIPanel({
           {
             role: 'user',
             content:
-              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+              'The above reasoning has been verified as correct. Based on that high level analysis, translate the strategy to a specific move sequence to complete the puzzle.',
           },
         ]
         finalPrompt = JSON.stringify(messages, null, 2)
@@ -888,7 +887,7 @@ export function AIPanel({
           {
             role: 'user',
             content:
-              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+              'The above reasoning has been verified as correct. Based on that high level analysis, translate the strategy to a specific move sequence to complete the puzzle.',
           },
         ]
         parts.push('```json')
@@ -1006,8 +1005,6 @@ export function AIPanel({
         return '← LEFT'
       case 'RIGHT':
         return '→ RIGHT'
-      case 'INTERACT':
-        return '⚡ INTERACT'
     }
   }
 

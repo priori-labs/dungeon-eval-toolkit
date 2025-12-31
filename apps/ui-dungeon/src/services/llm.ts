@@ -67,7 +67,7 @@ export async function getDungeonSolution(
           {
             role: 'user' as const,
             content:
-              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+              'The above reasoning has been verified as correct. Based on that high level analysis, translate the strategy to a specific move sequence to complete the puzzle.',
           },
         ]
       : [{ role: 'user' as const, content: prompt }]

@@ -14,7 +14,7 @@ export interface ParsedAIResponse {
   hasSubmit?: boolean
 }
 
-const VALID_ACTIONS: Action[] = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'INTERACT']
+const VALID_ACTIONS: Action[] = ['UP', 'DOWN', 'LEFT', 'RIGHT']
 
 /**
  * Parse an AI response to extract moves, reasoning, and exploration commands
@@ -229,8 +229,6 @@ export function movesToNotation(moves: Action[]): string {
           return 'l'
         case 'RIGHT':
           return 'r'
-        case 'INTERACT':
-          return 'i'
         default:
           return '?'
       }

@@ -107,142 +107,182 @@ export function DungeonGrid({
 
   const gridWidth = gridSize.width * cellSize
   const gridHeight = gridSize.height * cellSize
+  const indexSize = isLargeGrid ? 20 : 24
 
   return (
-    <div className={`inline-block rounded overflow-hidden animate-fade-in ${className}`}>
-      <div
-        className="relative bg-[hsl(var(--dungeon-floor))]"
-        style={{
-          width: gridWidth,
-          height: gridHeight,
-          display: 'grid',
-          gridTemplateColumns: `repeat(${gridSize.width}, ${cellSize}px)`,
-          gridTemplateRows: `repeat(${gridSize.height}, ${cellSize}px)`,
-        }}
-      >
-        {grid.map((row, y) =>
-          row.map((tile, x) => {
-            const tileType = tile.type
-            const cellIsPlayer = isPlayer(x, y)
-            const cellIsHighlighted = isHighlighted(x, y)
-            const cellKey = `cell-${x}-${y}`
+    <div className={`inline-block animate-fade-in ${className}`}>
+      {/* Column indexes (top) - static grid, indexes never reorder */}
+      <div className="flex" style={{ marginLeft: indexSize }}>
+        {Array.from({ length: gridSize.width }).map((_, x) => (
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: static grid indexes never reorder
+            key={`col-${x}`}
+            className="flex items-center justify-center text-muted-foreground font-mono"
+            style={{
+              width: cellSize,
+              height: indexSize,
+              fontSize: isLargeGrid ? 9 : 10,
+            }}
+          >
+            {x}
+          </div>
+        ))}
+      </div>
 
-            // Get base color
-            let bgColor = TILE_COLORS[tileType] || TILE_COLORS.EMPTY
+      <div className="flex">
+        {/* Row indexes (left) - static grid, indexes never reorder */}
+        <div className="flex flex-col">
+          {Array.from({ length: gridSize.height }).map((_, y) => (
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: static grid indexes never reorder
+              key={`row-${y}`}
+              className="flex items-center justify-center text-muted-foreground font-mono"
+              style={{
+                width: indexSize,
+                height: cellSize,
+                fontSize: isLargeGrid ? 9 : 10,
+              }}
+            >
+              {y}
+            </div>
+          ))}
+        </div>
 
-            // Handle open doors - show as floor-like
-            if (tileType.startsWith('DOOR_') && tile.isOpen) {
-              bgColor = 'hsl(var(--dungeon-floor))'
-            }
+        {/* Grid */}
+        <div
+          className="relative bg-[hsl(var(--dungeon-floor))] rounded overflow-hidden"
+          style={{
+            width: gridWidth,
+            height: gridHeight,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${gridSize.width}, ${cellSize}px)`,
+            gridTemplateRows: `repeat(${gridSize.height}, ${cellSize}px)`,
+          }}
+        >
+          {grid.map((row, y) =>
+            row.map((tile, x) => {
+              const tileType = tile.type
+              const cellIsPlayer = isPlayer(x, y)
+              const cellIsHighlighted = isHighlighted(x, y)
+              const cellKey = `cell-${x}-${y}`
 
-            // Get emoji
-            const emoji = TILE_EMOJIS[tileType as TileType]
+              // Get base color
+              let bgColor = TILE_COLORS[tileType] || TILE_COLORS.EMPTY
 
-            // Check for editing cursor
-            const isBorderCell =
-              x === 0 || x === gridSize.width - 1 || y === 0 || y === gridSize.height - 1
-            const canEdit = isEditing && selectedTile && !isBorderCell
+              // Handle open doors - show as floor-like
+              if (tileType.startsWith('DOOR_') && tile.isOpen) {
+                bgColor = 'hsl(var(--dungeon-floor))'
+              }
 
-            return (
-              <div
-                key={cellKey}
-                className={`relative transition-all duration-150 ${isEditing ? 'cursor-pointer hover:brightness-125' : ''} select-none outline-none`}
-                style={{
-                  backgroundColor: bgColor,
-                  cursor: canEdit ? 'crosshair' : undefined,
-                }}
-                onClick={isEditing ? () => onCellClick?.(x, y) : undefined}
-                onMouseDown={
-                  isEditing
-                    ? (e) => {
-                        e.preventDefault()
-                        onCellDragStart?.(x, y)
-                      }
-                    : undefined
-                }
-                onMouseEnter={isEditing && isDragging ? () => onCellDragEnter?.(x, y) : undefined}
-                onMouseUp={isEditing ? () => onDragEnd?.() : undefined}
-                onKeyDown={
-                  isEditing
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+              // Get emoji
+              const emoji = TILE_EMOJIS[tileType as TileType]
+
+              // Check for editing cursor
+              const isBorderCell =
+                x === 0 || x === gridSize.width - 1 || y === 0 || y === gridSize.height - 1
+              const canEdit = isEditing && selectedTile && !isBorderCell
+
+              return (
+                <div
+                  key={cellKey}
+                  className={`relative transition-all duration-150 ${isEditing ? 'cursor-pointer hover:brightness-125' : ''} select-none outline-none`}
+                  style={{
+                    backgroundColor: bgColor,
+                    cursor: canEdit ? 'crosshair' : undefined,
+                  }}
+                  onClick={isEditing ? () => onCellClick?.(x, y) : undefined}
+                  onMouseDown={
+                    isEditing
+                      ? (e) => {
                           e.preventDefault()
-                          onCellClick?.(x, y)
+                          onCellDragStart?.(x, y)
                         }
-                      }
-                    : undefined
-                }
-                role={isEditing ? 'button' : undefined}
-                tabIndex={isEditing ? 0 : undefined}
-              >
-                {/* Tile content (emoji) */}
-                {emoji && tileType !== 'WALL' && tileType !== 'EMPTY' && !cellIsPlayer && (
-                  <div
-                    className={`absolute inset-0 flex items-center justify-center ${
-                      tileType === 'BLOCK' || tileType === 'TRAP'
-                        ? isLargeGrid
-                          ? 'text-lg'
-                          : 'text-2xl'
-                        : isLargeGrid
-                          ? 'text-sm'
-                          : 'text-lg'
-                    } ${tileType === 'TRAP' ? 'border border-orange-400' : ''}`}
-                    style={{
-                      opacity: tileType.startsWith('DOOR_') && tile.isOpen ? 0.3 : 1,
-                    }}
-                  >
-                    {/* Special handling for open doors */}
-                    {tileType.startsWith('DOOR_') && tile.isOpen ? '┃' : emoji}
-                  </div>
-                )}
-
-                {/* Player */}
-                {cellIsPlayer && (
-                  <div
-                    className="absolute rounded-full flex items-center justify-center shadow-lg"
-                    style={{
-                      inset: isLargeGrid ? 3 : 4,
-                      backgroundColor: 'hsl(var(--dungeon-player))',
-                      border: `${isLargeGrid ? 2 : 3}px solid hsl(var(--dungeon-player) / 0.5)`,
-                    }}
-                  >
+                      : undefined
+                  }
+                  onMouseEnter={isEditing && isDragging ? () => onCellDragEnter?.(x, y) : undefined}
+                  onMouseUp={isEditing ? () => onDragEnd?.() : undefined}
+                  onKeyDown={
+                    isEditing
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onCellClick?.(x, y)
+                          }
+                        }
+                      : undefined
+                  }
+                  role={isEditing ? 'button' : undefined}
+                  tabIndex={isEditing ? 0 : undefined}
+                >
+                  {/* Tile content (emoji) */}
+                  {emoji && tileType !== 'WALL' && tileType !== 'EMPTY' && !cellIsPlayer && (
                     <div
-                      className={`${isLargeGrid ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full`}
-                      style={{ backgroundColor: 'hsl(var(--dungeon-player) / 0.3)' }}
-                    />
-                  </div>
-                )}
-
-                {/* Player start indicator (in editing mode, when player is elsewhere) */}
-                {isEditing &&
-                  state.level.playerStart.x === x &&
-                  state.level.playerStart.y === y &&
-                  !cellIsPlayer && (
-                    <div
-                      className="absolute rounded-full border-2 border-dashed flex items-center justify-center"
+                      className={`absolute inset-0 flex items-center justify-center ${
+                        tileType === 'BLOCK' || tileType === 'TRAP'
+                          ? isLargeGrid
+                            ? 'text-lg'
+                            : 'text-2xl'
+                          : isLargeGrid
+                            ? 'text-sm'
+                            : 'text-lg'
+                      } ${tileType === 'TRAP' ? 'border border-orange-400' : ''}`}
                       style={{
-                        inset: isLargeGrid ? 4 : 6,
-                        borderColor: 'hsl(var(--dungeon-player))',
-                        opacity: 0.5,
+                        opacity: tileType.startsWith('DOOR_') && tile.isOpen ? 0.3 : 1,
                       }}
                     >
-                      <span className={isLargeGrid ? 'text-[10px]' : 'text-xs'}>P</span>
+                      {/* Special handling for open doors */}
+                      {tileType.startsWith('DOOR_') && tile.isOpen ? '┃' : emoji}
                     </div>
                   )}
 
-                {/* AI path highlight overlay */}
-                {cellIsHighlighted && (
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      backgroundColor: 'rgba(251, 191, 36, 0.35)',
-                    }}
-                  />
-                )}
-              </div>
-            )
-          }),
-        )}
+                  {/* Player */}
+                  {cellIsPlayer && (
+                    <div
+                      className="absolute rounded-full flex items-center justify-center shadow-lg"
+                      style={{
+                        inset: isLargeGrid ? 3 : 4,
+                        backgroundColor: 'hsl(var(--dungeon-player))',
+                        border: `${isLargeGrid ? 2 : 3}px solid hsl(var(--dungeon-player) / 0.5)`,
+                      }}
+                    >
+                      <div
+                        className={`${isLargeGrid ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full`}
+                        style={{ backgroundColor: 'hsl(var(--dungeon-player) / 0.3)' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Player start indicator (in editing mode, when player is elsewhere) */}
+                  {isEditing &&
+                    state.level.playerStart.x === x &&
+                    state.level.playerStart.y === y &&
+                    !cellIsPlayer && (
+                      <div
+                        className="absolute rounded-full border-2 border-dashed flex items-center justify-center"
+                        style={{
+                          inset: isLargeGrid ? 4 : 6,
+                          borderColor: 'hsl(var(--dungeon-player))',
+                          opacity: 0.5,
+                        }}
+                      >
+                        <span className={isLargeGrid ? 'text-[10px]' : 'text-xs'}>P</span>
+                      </div>
+                    )}
+
+                  {/* AI path highlight overlay */}
+                  {cellIsHighlighted && (
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        backgroundColor: 'rgba(251, 191, 36, 0.35)',
+                      }}
+                    />
+                  )}
+                </div>
+              )
+            }),
+          )}
+        </div>
       </div>
     </div>
   )
