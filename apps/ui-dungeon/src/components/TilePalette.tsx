@@ -94,7 +94,7 @@ function TileButton({ tileType, isSelected, onClick }: TileButtonProps) {
       onClick={onClick}
       className={`w-6 h-6 rounded flex items-center justify-center text-xs transition-all ${
         isSelected
-          ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background scale-110'
+          ? 'ring-1 ring-amber-300/80 ring-offset-1 ring-offset-background scale-110'
           : 'hover:scale-110'
       }`}
       style={{ backgroundColor: bgColor }}
