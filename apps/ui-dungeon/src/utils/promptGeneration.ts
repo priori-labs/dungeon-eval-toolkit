@@ -13,6 +13,7 @@ export const DEFAULT_PROMPT_OPTIONS: PromptOptions = {
   addExamples: false,
   enableExploration: false,
   enableSemanticSymbols: false,
+  includeReasoning: false,
 }
 
 /**
@@ -416,10 +417,14 @@ function generateInstructions(semantic = false): string {
 /**
  * Generate exploration mode instructions
  */
-function generateExplorationInstructions(): string {
+function generateExplorationInstructions(includeReasoning: boolean): string {
   const parts: string[] = []
 
-  parts.push('You may explore the environment. Your reasoning will be included in follow-ups.')
+  if (includeReasoning) {
+    parts.push('You may explore the environment. Your reasoning will be included in follow-ups.')
+  } else {
+    parts.push('You may explore the environment.')
+  }
   parts.push('')
   parts.push('IMPORTANT: You must use SUBMIT to finalize your solution.')
   parts.push('')
@@ -433,8 +438,13 @@ function generateExplorationInstructions(): string {
   )
   parts.push('')
   parts.push('Response format (always JSON):')
-  parts.push('{"reasoning":"<your reasoning>","moves":["MOVE1","MOVE2",...,"SUBMIT"]}')
-  parts.push('{"reasoning":"<your reasoning>","moves":["<COMMAND>","MOVE1","MOVE2",...]}')
+  if (includeReasoning) {
+    parts.push('{"reasoning":"<your reasoning>","moves":["MOVE1","MOVE2",...,"SUBMIT"]}')
+    parts.push('{"reasoning":"<your reasoning>","moves":["<COMMAND>","MOVE1","MOVE2",...]}')
+  } else {
+    parts.push('{"moves":["MOVE1","MOVE2",...,"SUBMIT"]}')
+    parts.push('{"moves":["<COMMAND>","MOVE1","MOVE2",...]}')
+  }
   parts.push('')
   parts.push('Commands (as first element of moves array):')
   parts.push('- EXPLORE: Execute moves, see result, continue exploring')
@@ -448,15 +458,23 @@ function generateExplorationInstructions(): string {
   parts.push('  - After reaching goal via exploration: ["SUBMIT"] confirms completion')
   parts.push('')
   parts.push('Examples:')
-  parts.push('{"reasoning":"I see the solution","moves":["RIGHT","DOWN","LEFT","SUBMIT"]}')
-  parts.push(
-    '{"reasoning":"testing if I can push the block","moves":["EXPLORE","RIGHT","RIGHT","DOWN"]}',
-  )
-  parts.push('{"reasoning":"continuing to the door","moves":["CONTINUE","UP","RIGHT"]}')
-  parts.push(
-    '{"reasoning":"found it - full solution","moves":["RESTART","RIGHT","DOWN","LEFT","SUBMIT"]}',
-  )
-  parts.push('{"reasoning":"I reached the goal, confirming","moves":["SUBMIT"]}')
+  if (includeReasoning) {
+    parts.push('{"reasoning":"I see the solution","moves":["RIGHT","DOWN","LEFT","SUBMIT"]}')
+    parts.push(
+      '{"reasoning":"testing if I can push the block","moves":["EXPLORE","RIGHT","RIGHT","DOWN"]}',
+    )
+    parts.push('{"reasoning":"continuing to the door","moves":["CONTINUE","UP","RIGHT"]}')
+    parts.push(
+      '{"reasoning":"found it - full solution","moves":["RESTART","RIGHT","DOWN","LEFT","SUBMIT"]}',
+    )
+    parts.push('{"reasoning":"I reached the goal, confirming","moves":["SUBMIT"]}')
+  } else {
+    parts.push('{"moves":["RIGHT","DOWN","LEFT","SUBMIT"]}')
+    parts.push('{"moves":["EXPLORE","RIGHT","RIGHT","DOWN"]}')
+    parts.push('{"moves":["CONTINUE","UP","RIGHT"]}')
+    parts.push('{"moves":["RESTART","RIGHT","DOWN","LEFT","SUBMIT"]}')
+    parts.push('{"moves":["SUBMIT"]}')
+  }
 
   return parts.join('\n')
 }
@@ -509,17 +527,25 @@ export function generateDungeonPrompt(state: GameState, options: PromptOptions):
   const goalSymbol = semantic ? 'G' : 'X'
 
   if (options.enableExploration) {
-    parts.push(generateExplorationInstructions())
+    parts.push(generateExplorationInstructions(options.includeReasoning))
   } else if (options.executionMode === 'fullSolution') {
     parts.push(`Provide a solution sequence to reach ${goalSymbol}.`)
     parts.push('')
     parts.push('Return ONLY a JSON object in this exact format (no other text):')
-    parts.push('{"reasoning":"<your reasoning>","moves":["UP","RIGHT","DOWN","LEFT"]}')
+    if (options.includeReasoning) {
+      parts.push('{"reasoning":"<your reasoning>","moves":["UP","RIGHT","DOWN","LEFT"]}')
+    } else {
+      parts.push('{"moves":["UP","RIGHT","DOWN","LEFT"]}')
+    }
   } else {
     parts.push('Provide the next move.')
     parts.push('')
     parts.push('Return ONLY a JSON object in this exact format (no other text):')
-    parts.push('{"reasoning":"<your reasoning>","move":"UP"}')
+    if (options.includeReasoning) {
+      parts.push('{"reasoning":"<your reasoning>","move":"UP"}')
+    } else {
+      parts.push('{"move":"UP"}')
+    }
   }
 
   return parts.join('\n')

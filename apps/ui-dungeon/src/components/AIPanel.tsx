@@ -1231,6 +1231,22 @@ export function AIPanel({
                 Enable Semantic Symbols
               </Label>
             </div>
+            {/* Include Reasoning option */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="includeReasoning"
+                checked={promptOptions.includeReasoning}
+                onCheckedChange={() => togglePromptOption('includeReasoning')}
+                disabled={isRunning || plannedMoves.length > 0}
+                className="h-3.5 w-3.5"
+              />
+              <Label
+                htmlFor="includeReasoning"
+                className={`text-xs ${isRunning || plannedMoves.length > 0 ? 'text-muted-foreground cursor-default' : 'cursor-pointer'}`}
+              >
+                Include Reasoning Summary
+              </Label>
+            </div>
           </div>
         </div>
         <Separator />

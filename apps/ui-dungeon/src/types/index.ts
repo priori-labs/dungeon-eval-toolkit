@@ -122,6 +122,8 @@ export interface PromptOptions {
   enableExploration: boolean
   /** Use semantic symbol names (e.g., "red key" instead of "a") */
   enableSemanticSymbols: boolean
+  /** Include reasoning field in the response format */
+  includeReasoning: boolean
 }
 
 // Exploration command types for AI responses
