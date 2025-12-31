@@ -40,11 +40,13 @@ export interface LLMResponse {
 
 /**
  * Get a solution from the LLM for a dungeon puzzle.
+ * @param seedReasoning Optional "fake history" reasoning to seed the model with
  */
 export async function getDungeonSolution(
   state: GameState,
   model: string,
   options: PromptOptions,
+  seedReasoning?: string,
 ): Promise<LLMResponse> {
   const startTime = Date.now()
 
@@ -57,9 +59,22 @@ export async function getDungeonSolution(
 
     const prompt = generateDungeonPrompt(state, options)
 
+    // Build messages - use "Fake History" format if seed reasoning provided
+    const messages = seedReasoning?.trim()
+      ? [
+          { role: 'user' as const, content: prompt },
+          { role: 'assistant' as const, content: seedReasoning.trim() },
+          {
+            role: 'user' as const,
+            content:
+              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+          },
+        ]
+      : [{ role: 'user' as const, content: prompt }]
+
     const response = await client.chat.completions.create({
       model,
-      messages: [{ role: 'user' as const, content: prompt }],
+      messages,
       temperature: 0.3,
     })
 

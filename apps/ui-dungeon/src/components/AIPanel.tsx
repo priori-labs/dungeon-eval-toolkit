@@ -88,6 +88,7 @@ export function AIPanel({
   const [copied, setCopied] = useState(false)
   const [copiedContinuePrompt, setCopiedContinuePrompt] = useState(false)
   const [promptGuidance, setPromptGuidance] = useState('')
+  const [includeStrategicInstructions, setIncludeStrategicInstructions] = useState(true)
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
   const [copiedRawResponse, setCopiedRawResponse] = useState(false)
@@ -355,8 +356,9 @@ export function AIPanel({
 
     setInflightStartTime(Date.now())
 
-    // Get solution from LLM
-    const response = await getDungeonSolution(state, model, promptOptions)
+    // Get solution from LLM (pass promptGuidance as seed reasoning for "Fake History" approach)
+    const effectiveSeedReasoning = includeStrategicInstructions ? promptGuidance : undefined
+    const response = await getDungeonSolution(state, model, promptOptions, effectiveSeedReasoning)
 
     setInflightStartTime(null)
 
@@ -463,7 +465,16 @@ export function AIPanel({
     setTimeout(() => {
       executeNextMove()
     }, 300)
-  }, [state, isRunning, model, promptOptions, onReset, executeNextMove])
+  }, [
+    state,
+    isRunning,
+    model,
+    promptOptions,
+    promptGuidance,
+    includeStrategicInstructions,
+    onReset,
+    executeNextMove,
+  ])
 
   const handleStop = useCallback(() => {
     abortRef.current = true
@@ -753,16 +764,36 @@ export function AIPanel({
   const handleCopyPrompt = useCallback(async () => {
     if (!previewPrompt) return
     try {
-      const finalPrompt = promptGuidance.trim()
-        ? `${previewPrompt}\n\n## Strategic Puzzle Instructions\n\n${promptGuidance.trim()}\n\nThe above reasoning has been verified as correct. Use it to guide your move generation.\n\n## Task\nBased on the Board State and the Strategic Instructions above, output the JSON solution.`
-        : previewPrompt
+      let finalPrompt: string
+      const effectiveGuidance = includeStrategicInstructions ? promptGuidance.trim() : ''
+      if (effectiveGuidance) {
+        // Use "Fake History" format for seeding reasoning across all models
+        const messages = [
+          {
+            role: 'user',
+            content: previewPrompt,
+          },
+          {
+            role: 'assistant',
+            content: effectiveGuidance,
+          },
+          {
+            role: 'user',
+            content:
+              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+          },
+        ]
+        finalPrompt = JSON.stringify(messages, null, 2)
+      } else {
+        finalPrompt = previewPrompt
+      }
       await navigator.clipboard.writeText(finalPrompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
     }
-  }, [previewPrompt, promptGuidance])
+  }, [previewPrompt, promptGuidance, includeStrategicInstructions])
 
   const handleCopyContinuePrompt = useCallback(async () => {
     if (!state || !isExploring || !initialPrompt) return
@@ -838,14 +869,34 @@ export function AIPanel({
     if (!previewPrompt) return
     try {
       const parts: string[] = []
+      const effectiveGuidance = includeStrategicInstructions ? promptGuidance.trim() : ''
 
       // Initial Prompt
       parts.push('## Initial Prompt')
       parts.push('')
-      const finalPrompt = promptGuidance.trim()
-        ? `${previewPrompt}\n\n## Strategic Puzzle Instructions\n\n${promptGuidance.trim()}\n\nThe above reasoning has been verified as correct. Use it to guide your move generation.\n\n## Task\nBased on the Board State and the Strategic Instructions above, output the JSON solution.`
-        : previewPrompt
-      parts.push(finalPrompt)
+      if (effectiveGuidance) {
+        // Use "Fake History" format for seeding reasoning across all models
+        const messages = [
+          {
+            role: 'user',
+            content: previewPrompt,
+          },
+          {
+            role: 'assistant',
+            content: effectiveGuidance,
+          },
+          {
+            role: 'user',
+            content:
+              'The above reasoning has been verified as correct. Based STRICTLY on that analysis, output the move sequence JSON.\n\nRespond with MINIMAL OR NO REASONING/THINKING. Only use reasoning to translate the provided instructions into specific actions. AVOID REPRODUCING YOUR OWN REASONING TO SOLVE THE PUZZLE.',
+          },
+        ]
+        parts.push('```json')
+        parts.push(JSON.stringify(messages, null, 2))
+        parts.push('```')
+      } else {
+        parts.push(previewPrompt)
+      }
       parts.push('')
 
       // AI Reasoning
@@ -904,6 +955,7 @@ export function AIPanel({
   }, [
     previewPrompt,
     promptGuidance,
+    includeStrategicInstructions,
     nativeReasoning,
     parsedReasoning,
     rawResponse,
@@ -1303,9 +1355,25 @@ export function AIPanel({
                 {copied ? 'Copied!' : 'Copy Prompt'}
               </Button>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  Strategic Puzzle Instructions (optional)
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Strategic Instructions</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="includeStrategicInstructions"
+                      checked={includeStrategicInstructions}
+                      onCheckedChange={(checked) =>
+                        setIncludeStrategicInstructions(checked === true)
+                      }
+                      className="h-3.5 w-3.5"
+                    />
+                    <Label
+                      htmlFor="includeStrategicInstructions"
+                      className="text-[10px] text-muted-foreground cursor-pointer"
+                    >
+                      Include
+                    </Label>
+                  </div>
+                </div>
                 <Textarea
                   value={promptGuidance}
                   onChange={(e) => setPromptGuidance(e.target.value)}
