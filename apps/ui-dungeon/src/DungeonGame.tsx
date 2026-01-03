@@ -26,11 +26,33 @@ export function DungeonGame() {
   const [isSettingPlayerStart, setIsSettingPlayerStart] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
+  // Human player timer state
+  const [timerStarted, setTimerStarted] = useState(false)
+  const [timerStartTime, setTimerStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState(0)
+
+  // Human eval session state
+  const [sessionActive, setSessionActive] = useState(false)
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null)
+  const [sessionElapsedTime, setSessionElapsedTime] = useState(0)
+  const [sessionTotalMoves, setSessionTotalMoves] = useState(0)
+  const [sessionRestartCount, setSessionRestartCount] = useState(0)
+
   // Handle level load
   const handleLevelLoad = useCallback((level: DungeonLevel) => {
     setCurrentLevel(level)
     setGameState(createGame(level))
     setAiInferenceTimeMs(null)
+    // Reset timer on level load
+    setTimerStarted(false)
+    setTimerStartTime(null)
+    setElapsedTime(0)
+    // End session on level load
+    setSessionActive(false)
+    setSessionStartTime(null)
+    setSessionElapsedTime(0)
+    setSessionTotalMoves(0)
+    setSessionRestartCount(0)
   }, [])
 
   // Load blank level on mount
@@ -42,6 +64,46 @@ export function DungeonGame() {
     handleLevelLoad(level)
   }, [handleLevelLoad])
 
+  // Timer effect - updates every second while timer is running and game not done
+  useEffect(() => {
+    if (!timerStarted || !timerStartTime || gameState?.done) return
+
+    const interval = setInterval(() => {
+      setElapsedTime(Date.now() - timerStartTime)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [timerStarted, timerStartTime, gameState?.done])
+
+  // Session timer effect - updates every second while session is active and puzzle not complete
+  useEffect(() => {
+    if (!sessionActive || !sessionStartTime || gameState?.success) return
+
+    const interval = setInterval(() => {
+      setSessionElapsedTime(Date.now() - sessionStartTime)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [sessionActive, sessionStartTime, gameState?.success])
+
+  // Handle start session
+  const handleStartSession = useCallback(() => {
+    setSessionActive(true)
+    setSessionStartTime(Date.now())
+    setSessionElapsedTime(0)
+    setSessionTotalMoves(0)
+    setSessionRestartCount(0)
+    // Also reset the current game timer
+    setTimerStarted(false)
+    setTimerStartTime(null)
+    setElapsedTime(0)
+  }, [])
+
+  // Handle end session
+  const handleEndSession = useCallback(() => {
+    setSessionActive(false)
+  }, [])
+
   // Handle action (movement or interact)
   const handleAction = useCallback(
     (action: Action): boolean => {
@@ -49,12 +111,22 @@ export function DungeonGame() {
 
       const result = executeAction(gameState, action, 'human')
       if (result.success) {
+        // Auto-start timer on first move
+        if (!timerStarted && gameState.turn === 0) {
+          setTimerStarted(true)
+          setTimerStartTime(Date.now())
+          setElapsedTime(0)
+        }
+        // Track session moves
+        if (sessionActive) {
+          setSessionTotalMoves((prev) => prev + 1)
+        }
         setGameState(result.newState)
         return true
       }
       return false
     },
-    [gameState],
+    [gameState, timerStarted, sessionActive],
   )
 
   // Handle AI action
@@ -82,7 +154,15 @@ export function DungeonGame() {
   const handleReset = useCallback(() => {
     if (!gameState) return
     setGameState(resetGame(gameState))
-  }, [gameState])
+    // Reset timer on game reset
+    setTimerStarted(false)
+    setTimerStartTime(null)
+    setElapsedTime(0)
+    // Track session restarts (only if moves were made)
+    if (sessionActive && gameState.turn > 0) {
+      setSessionRestartCount((prev) => prev + 1)
+    }
+  }, [gameState, sessionActive])
 
   // Handle cell click for editing
   const handleCellClick = useCallback(
@@ -304,6 +384,14 @@ export function DungeonGame() {
               onReset={handleReset}
               disabled={false}
               aiInferenceTimeMs={aiInferenceTimeMs}
+              timerStarted={timerStarted}
+              elapsedTime={elapsedTime}
+              sessionActive={sessionActive}
+              sessionElapsedTime={sessionElapsedTime}
+              sessionTotalMoves={sessionTotalMoves}
+              sessionRestartCount={sessionRestartCount}
+              onStartSession={handleStartSession}
+              onEndSession={handleEndSession}
             />
           </CardContent>
         </Card>

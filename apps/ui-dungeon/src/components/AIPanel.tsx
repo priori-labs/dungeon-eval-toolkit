@@ -1402,23 +1402,26 @@ export function AIPanel({
         {error && (
           <div className="space-y-2">
             <div className="bg-red-500/10 text-red-400 rounded-md px-3 py-2 text-xs">{error}</div>
-            {storedSolution.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="showFullPath"
-                  checked={showFullPath}
-                  onCheckedChange={(checked) => setShowFullPath(checked === true)}
-                  className="h-3.5 w-3.5"
-                />
-                <Label htmlFor="showFullPath" className="text-xs cursor-pointer">
-                  Show full AI path on grid
-                </Label>
-              </div>
-            ) : !isExploring ? (
+            {storedSolution.length === 0 && !isExploring && (
               <Button onClick={handleResetAI} variant="outline" className="w-full" size="sm">
                 Reset
               </Button>
-            ) : null}
+            )}
+          </div>
+        )}
+
+        {/* Show full AI path option - available for all outcomes when there's a solution */}
+        {storedSolution.length > 0 && !isRunning && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="showFullPath"
+              checked={showFullPath}
+              onCheckedChange={(checked) => setShowFullPath(checked === true)}
+              className="h-3.5 w-3.5"
+            />
+            <Label htmlFor="showFullPath" className="text-xs cursor-pointer">
+              Show full AI path on grid
+            </Label>
           </div>
         )}
 
