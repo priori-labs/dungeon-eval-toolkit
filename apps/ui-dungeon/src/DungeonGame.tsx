@@ -60,7 +60,7 @@ export function DungeonGame() {
     if (initialLoadDone.current) return
     initialLoadDone.current = true
 
-    const level = createBlankLevel(10, 8, 'New Level')
+    const level = createBlankLevel(16, 16, 'New Level')
     handleLevelLoad(level)
   }, [handleLevelLoad])
 

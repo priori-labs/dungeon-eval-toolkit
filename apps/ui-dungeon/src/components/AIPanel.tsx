@@ -88,7 +88,7 @@ export function AIPanel({
   const [copied, setCopied] = useState(false)
   const [copiedContinuePrompt, setCopiedContinuePrompt] = useState(false)
   const [promptGuidance, setPromptGuidance] = useState('')
-  const [includeStrategicInstructions, setIncludeStrategicInstructions] = useState(true)
+  const [includeStrategicInstructions, setIncludeStrategicInstructions] = useState(false)
   const [copiedNativeReasoning, setCopiedNativeReasoning] = useState(false)
   const [copiedParsedReasoning, setCopiedParsedReasoning] = useState(false)
   const [copiedRawResponse, setCopiedRawResponse] = useState(false)
