@@ -1097,6 +1097,10 @@ export function AIPanel({
                 <span>Human Time (1000 wpm):</span>
                 <span>{formatDuration((sessionMetrics.estimatedWords / 1000) * 60 * 1000)}</span>
               </div>
+              <div className="flex justify-between text-primary">
+                <span>Page Est. (500 words/page):</span>
+                <span>{(sessionMetrics.estimatedWords / 500).toFixed(1)}</span>
+              </div>
               {(commandCounts.explore > 0 ||
                 commandCounts.continue > 0 ||
                 commandCounts.restart > 0 ||
