@@ -16,8 +16,8 @@
       "name": "Debug Frontend",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}/apps/web",
+      "url": "http://localhost:5175",
+      "webRoot": "${workspaceFolder}/apps/ui-dungeon",
       "sourceMapPathOverrides": {
         "webpack:///./src/*": "${webRoot}/src/*"
       }
