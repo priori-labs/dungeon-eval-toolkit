@@ -1,3 +1,4 @@
+import { Cube, DoorOpen, Flag, Key, Skull, Spiral } from '@phosphor-icons/react'
 import {
   Card,
   CardContent,
@@ -372,12 +373,7 @@ export function DungeonGame() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto space-y-4 min-h-0">
-            <LevelSelector
-              onLevelLoad={handleLevelLoad}
-              currentLevel={currentLevel}
-              isEditing={isEditing}
-              onEditingChange={setIsEditing}
-            />
+            <LevelSelector onLevelLoad={handleLevelLoad} currentLevel={currentLevel} />
             <ControlPanel
               state={gameState}
               onUndo={handleUndo}
@@ -399,17 +395,20 @@ export function DungeonGame() {
 
       {/* Center - Game Area */}
       <div className="flex-1 flex flex-col items-center px-5 py-4 min-w-0">
-        {/* Tile palette for editing */}
-        {isEditing && (
-          <div className="mb-3 px-3 py-2 bg-card/50 rounded-lg border">
-            <TilePalette
-              selectedTile={selectedTile}
-              onSelectTile={setSelectedTile}
-              isSettingPlayerStart={isSettingPlayerStart}
-              onSetPlayerStart={setIsSettingPlayerStart}
-            />
-          </div>
-        )}
+        {/* Tile palette with edit toggle */}
+        <div
+          className="mb-3 px-3 py-2 rounded-lg border border-white/5"
+          style={{ backgroundColor: 'hsl(0 0% 8%)' }}
+        >
+          <TilePalette
+            selectedTile={selectedTile}
+            onSelectTile={setSelectedTile}
+            isSettingPlayerStart={isSettingPlayerStart}
+            onSetPlayerStart={setIsSettingPlayerStart}
+            isEditing={isEditing}
+            onEditingChange={setIsEditing}
+          />
+        </div>
 
         {/* Main content */}
         <div className="flex flex-col items-center flex-1 justify-center">
@@ -453,34 +452,31 @@ export function DungeonGame() {
           {/* Legend */}
           <div className="mt-3 flex gap-4 items-center text-[11px] text-muted-foreground flex-wrap justify-center">
             <div className="flex items-center gap-1.5">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: 'hsl(var(--dungeon-player))' }}
-              />
+              <span style={{ fontSize: 14 }}>🧑‍🚀</span>
               <span>Player</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>⭐</span>
+              <Flag size={14} weight="fill" color="hsl(47 80% 55%)" />
               <span>Goal</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>🔑</span>
+              <Key size={14} weight="regular" color="hsl(210 65% 55%)" />
               <span>Key</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>🚪</span>
+              <DoorOpen size={14} weight="fill" color="hsl(25 70% 50%)" />
               <span>Door</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>📦</span>
+              <Cube size={14} weight="regular" color="hsl(30 30% 55%)" />
               <span>Block</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>💀</span>
+              <Skull size={14} weight="regular" color="hsl(0 75% 55%)" />
               <span>Trap</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span>🌀</span>
+              <Spiral size={14} weight="regular" color="hsl(270 55% 60%)" />
               <span>Portal</span>
             </div>
           </div>

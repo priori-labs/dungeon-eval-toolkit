@@ -51,23 +51,6 @@ export const TILE_CATEGORIES = {
   portals: ['PORTAL_A', 'PORTAL_B'] as TileType[],
 }
 
-// Tile emoji mappings
-export const TILE_EMOJIS: Partial<Record<TileType, string>> = {
-  GOAL: '⭐',
-  KEY_RED: '🔑',
-  KEY_BLUE: '🔑',
-  KEY_GREEN: '🔑',
-  KEY_YELLOW: '🔑',
-  DOOR_RED: '🚪',
-  DOOR_BLUE: '🚪',
-  DOOR_GREEN: '🚪',
-  DOOR_YELLOW: '🚪',
-  BLOCK: '📦',
-  TRAP: '💀',
-  PORTAL_A: '🌀',
-  PORTAL_B: '🌀',
-}
-
 // Tile display names
 export const TILE_NAMES: Record<TileType, string> = {
   EMPTY: 'Empty',

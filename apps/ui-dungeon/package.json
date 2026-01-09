@@ -12,6 +12,7 @@
     "test:watch": "bun test --watch"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@sokoban-eval-toolkit/ui-library": "workspace:*",
     "@sokoban-eval-toolkit/utils": "workspace:*",
     "lucide-react": "^0.468.0",

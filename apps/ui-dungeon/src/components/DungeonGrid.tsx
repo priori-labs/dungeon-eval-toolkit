@@ -1,3 +1,4 @@
+import { Cube, DoorOpen, Flag, Key, Skull, Spiral } from '@phosphor-icons/react'
 import { CELL_SIZE } from '@src/constants'
 import type { GameState, Position, TileType } from '@src/types'
 
@@ -35,40 +36,102 @@ interface DungeonGridProps {
   isDragging?: boolean
 }
 
-// Color mappings for tile types
-const TILE_COLORS: Record<string, string> = {
-  EMPTY: 'hsl(var(--dungeon-floor))',
-  WALL: 'hsl(var(--dungeon-wall))',
-  GOAL: 'hsl(var(--dungeon-goal))',
-  KEY_RED: '#ffb3ba',
-  KEY_BLUE: '#bae1ff',
-  KEY_GREEN: '#baffc9',
-  KEY_YELLOW: '#ffffba',
-  DOOR_RED: '#ff9aa2',
-  DOOR_BLUE: '#9ac9ff',
-  DOOR_GREEN: '#9affb3',
-  DOOR_YELLOW: '#ffff9a',
-  BLOCK: 'hsl(var(--dungeon-floor))',
-  TRAP: 'hsl(var(--dungeon-floor))',
-  PORTAL_A: '#c7ceea',
-  PORTAL_B: '#e2c7ea',
+// Sophisticated muted color palette for tile accents
+const TILE_ACCENT_COLORS: Record<string, { bg: string; border: string; icon: string }> = {
+  EMPTY: { bg: 'transparent', border: 'transparent', icon: 'transparent' },
+  WALL: { bg: 'hsl(var(--dungeon-wall))', border: 'transparent', icon: 'transparent' },
+  GOAL: { bg: 'hsl(47 80% 50% / 0.45)', border: 'hsl(47 80% 50% / 0.6)', icon: 'hsl(47 80% 55%)' },
+  KEY_RED: { bg: 'hsl(0 60% 50% / 0.4)', border: 'hsl(0 60% 45% / 0.6)', icon: 'hsl(0 65% 55%)' },
+  KEY_BLUE: {
+    bg: 'hsl(210 60% 50% / 0.4)',
+    border: 'hsl(210 60% 45% / 0.6)',
+    icon: 'hsl(210 65% 55%)',
+  },
+  KEY_GREEN: {
+    bg: 'hsl(140 50% 45% / 0.4)',
+    border: 'hsl(140 50% 40% / 0.6)',
+    icon: 'hsl(140 55% 50%)',
+  },
+  KEY_YELLOW: {
+    bg: 'hsl(45 70% 50% / 0.4)',
+    border: 'hsl(45 70% 45% / 0.6)',
+    icon: 'hsl(45 75% 55%)',
+  },
+  DOOR_RED: {
+    bg: 'hsl(25 70% 40% / 0.5)',
+    border: 'hsl(25 70% 40% / 0.7)',
+    icon: 'hsl(25 75% 50%)',
+  },
+  DOOR_BLUE: {
+    bg: 'hsl(210 55% 40% / 0.5)',
+    border: 'hsl(210 55% 40% / 0.7)',
+    icon: 'hsl(210 60% 50%)',
+  },
+  DOOR_GREEN: {
+    bg: 'hsl(140 45% 35% / 0.5)',
+    border: 'hsl(140 45% 35% / 0.7)',
+    icon: 'hsl(140 50% 45%)',
+  },
+  DOOR_YELLOW: {
+    bg: 'hsl(45 65% 40% / 0.5)',
+    border: 'hsl(45 65% 40% / 0.7)',
+    icon: 'hsl(45 70% 50%)',
+  },
+  BLOCK: { bg: 'hsl(30 30% 35% / 0.5)', border: 'hsl(30 25% 40% / 0.6)', icon: 'hsl(30 30% 55%)' },
+  TRAP: { bg: 'hsl(0 70% 45% / 0.45)', border: 'hsl(0 70% 40% / 0.6)', icon: 'hsl(0 75% 55%)' },
+  PORTAL_A: {
+    bg: 'hsl(270 50% 50% / 0.45)',
+    border: 'hsl(270 50% 45% / 0.6)',
+    icon: 'hsl(270 55% 60%)',
+  },
+  PORTAL_B: {
+    bg: 'hsl(180 50% 45% / 0.45)',
+    border: 'hsl(180 50% 40% / 0.6)',
+    icon: 'hsl(180 55% 55%)',
+  },
 }
 
-// Emoji mappings for tile types
-const TILE_EMOJIS: Partial<Record<TileType, string>> = {
-  GOAL: '⭐',
-  KEY_RED: '🔑',
-  KEY_BLUE: '🔑',
-  KEY_GREEN: '🔑',
-  KEY_YELLOW: '🔑',
-  DOOR_RED: '🚪',
-  DOOR_BLUE: '🚪',
-  DOOR_GREEN: '🚪',
-  DOOR_YELLOW: '🚪',
-  BLOCK: '📦',
-  TRAP: '💀',
-  PORTAL_A: '🌀',
-  PORTAL_B: '🌀',
+// Get the appropriate icon component for a tile type
+function TileIcon({
+  tileType,
+  size,
+  isOpen,
+}: {
+  tileType: TileType
+  size: number
+  isOpen?: boolean
+}) {
+  const colors = TILE_ACCENT_COLORS[tileType] || TILE_ACCENT_COLORS.EMPTY
+  const iconColor = colors.icon
+  const weight = 'regular' as const
+
+  switch (tileType) {
+    case 'GOAL':
+      return <Flag size={size} weight="fill" color={iconColor} />
+    case 'KEY_RED':
+    case 'KEY_BLUE':
+    case 'KEY_GREEN':
+    case 'KEY_YELLOW':
+      return <Key size={size} weight={weight} color={iconColor} />
+    case 'DOOR_RED':
+    case 'DOOR_BLUE':
+    case 'DOOR_GREEN':
+    case 'DOOR_YELLOW':
+      return isOpen ? (
+        <DoorOpen size={size} weight={weight} color={iconColor} style={{ opacity: 0.4 }} />
+      ) : (
+        <DoorOpen size={size} weight="fill" color={iconColor} />
+      )
+    case 'BLOCK':
+      return <Cube size={size} weight={weight} color={iconColor} />
+    case 'TRAP':
+      return <Skull size={size} weight={weight} color={iconColor} />
+    case 'PORTAL_A':
+    case 'PORTAL_B':
+      return <Spiral size={size} weight={weight} color={iconColor} className="animate-spin-slow" />
+    default:
+      return null
+  }
 }
 
 export function DungeonGrid({
@@ -108,6 +171,7 @@ export function DungeonGrid({
   const gridWidth = gridSize.width * cellSize
   const gridHeight = gridSize.height * cellSize
   const indexSize = isLargeGrid ? 20 : 24
+  const iconSize = isLargeGrid ? 16 : 22
 
   return (
     <div className={`inline-block animate-fade-in ${className}`}>
@@ -117,7 +181,7 @@ export function DungeonGrid({
           <div
             // biome-ignore lint/suspicious/noArrayIndexKey: static grid indexes never reorder
             key={`col-${x}`}
-            className="flex items-center justify-center text-muted-foreground font-mono"
+            className="flex items-center justify-center text-muted-foreground/60 font-mono"
             style={{
               width: cellSize,
               height: indexSize,
@@ -136,7 +200,7 @@ export function DungeonGrid({
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: static grid indexes never reorder
               key={`row-${y}`}
-              className="flex items-center justify-center text-muted-foreground font-mono"
+              className="flex items-center justify-center text-muted-foreground/60 font-mono"
               style={{
                 width: indexSize,
                 height: cellSize,
@@ -150,13 +214,15 @@ export function DungeonGrid({
 
         {/* Grid */}
         <div
-          className="relative bg-[hsl(var(--dungeon-floor))] rounded overflow-hidden"
+          className="relative rounded-sm overflow-hidden"
           style={{
             width: gridWidth,
             height: gridHeight,
             display: 'grid',
             gridTemplateColumns: `repeat(${gridSize.width}, ${cellSize}px)`,
             gridTemplateRows: `repeat(${gridSize.height}, ${cellSize}px)`,
+            backgroundColor: 'hsl(var(--dungeon-floor))',
+            boxShadow: 'inset 0 0 0 1px hsl(var(--border) / 0.3)',
           }}
         >
           {grid.map((row, y) =>
@@ -165,17 +231,13 @@ export function DungeonGrid({
               const cellIsPlayer = isPlayer(x, y)
               const cellIsHighlighted = isHighlighted(x, y)
               const cellKey = `cell-${x}-${y}`
+              const isWall = tileType === 'WALL'
+              const isEmpty = tileType === 'EMPTY'
+              const isDoor = tileType.startsWith('DOOR_')
+              const isOpenDoor = isDoor && tile.isOpen
 
-              // Get base color
-              let bgColor = TILE_COLORS[tileType] || TILE_COLORS.EMPTY
-
-              // Handle open doors - show as floor-like
-              if (tileType.startsWith('DOOR_') && tile.isOpen) {
-                bgColor = 'hsl(var(--dungeon-floor))'
-              }
-
-              // Get emoji
-              const emoji = TILE_EMOJIS[tileType as TileType]
+              // Get accent colors for this tile
+              const colors = TILE_ACCENT_COLORS[tileType] || TILE_ACCENT_COLORS.EMPTY
 
               // Check for editing cursor
               const isBorderCell =
@@ -185,10 +247,18 @@ export function DungeonGrid({
               return (
                 <div
                   key={cellKey}
-                  className={`relative transition-all duration-150 ${isEditing ? 'cursor-pointer hover:brightness-125' : ''} select-none outline-none`}
+                  className={`relative transition-all duration-100 select-none outline-none ${
+                    isEditing ? 'cursor-pointer hover:brightness-125' : ''
+                  }`}
                   style={{
-                    backgroundColor: bgColor,
+                    backgroundColor: isWall ? colors.bg : isEmpty ? 'transparent' : colors.bg,
                     cursor: canEdit ? 'crosshair' : undefined,
+                    boxShadow:
+                      !isWall && !isEmpty && !isOpenDoor
+                        ? `inset 0 0 0 1px ${colors.border}`
+                        : isWall
+                          ? 'inset 0 1px 2px hsl(0 0% 100% / 0.05)'
+                          : undefined,
                   }}
                   onClick={isEditing ? () => onCellClick?.(x, y) : undefined}
                   onMouseDown={
@@ -214,41 +284,20 @@ export function DungeonGrid({
                   role={isEditing ? 'button' : undefined}
                   tabIndex={isEditing ? 0 : undefined}
                 >
-                  {/* Tile content (emoji) */}
-                  {emoji && tileType !== 'WALL' && tileType !== 'EMPTY' && !cellIsPlayer && (
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center ${
-                        tileType === 'BLOCK' || tileType === 'TRAP'
-                          ? isLargeGrid
-                            ? 'text-lg'
-                            : 'text-2xl'
-                          : isLargeGrid
-                            ? 'text-sm'
-                            : 'text-lg'
-                      } ${tileType === 'TRAP' ? 'border border-orange-400' : ''}`}
-                      style={{
-                        opacity: tileType.startsWith('DOOR_') && tile.isOpen ? 0.3 : 1,
-                      }}
-                    >
-                      {/* Special handling for open doors */}
-                      {tileType.startsWith('DOOR_') && tile.isOpen ? '┃' : emoji}
+                  {/* Tile icon */}
+                  {!isWall && !isEmpty && !cellIsPlayer && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <TileIcon tileType={tileType} size={iconSize} isOpen={isOpenDoor} />
                     </div>
                   )}
 
                   {/* Player */}
                   {cellIsPlayer && (
                     <div
-                      className="absolute rounded-full flex items-center justify-center shadow-lg"
-                      style={{
-                        inset: isLargeGrid ? 3 : 4,
-                        backgroundColor: 'hsl(var(--dungeon-player))',
-                        border: `${isLargeGrid ? 2 : 3}px solid hsl(var(--dungeon-player) / 0.5)`,
-                      }}
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ fontSize: isLargeGrid ? 18 : 24 }}
                     >
-                      <div
-                        className={`${isLargeGrid ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full`}
-                        style={{ backgroundColor: 'hsl(var(--dungeon-player) / 0.3)' }}
-                      />
+                      🧑‍🚀
                     </div>
                   )}
 
@@ -258,14 +307,10 @@ export function DungeonGrid({
                     state.level.playerStart.y === y &&
                     !cellIsPlayer && (
                       <div
-                        className="absolute rounded-full border-2 border-dashed flex items-center justify-center"
-                        style={{
-                          inset: isLargeGrid ? 4 : 6,
-                          borderColor: 'hsl(var(--dungeon-player))',
-                          opacity: 0.5,
-                        }}
+                        className="absolute inset-0 flex items-center justify-center opacity-40"
+                        style={{ fontSize: isLargeGrid ? 14 : 18 }}
                       >
-                        <span className={isLargeGrid ? 'text-[10px]' : 'text-xs'}>P</span>
+                        🧑‍🚀
                       </div>
                     )}
 
@@ -274,7 +319,8 @@ export function DungeonGrid({
                     <div
                       className="absolute inset-0 pointer-events-none"
                       style={{
-                        backgroundColor: 'rgba(251, 191, 36, 0.35)',
+                        backgroundColor: 'hsl(45 100% 50% / 0.25)',
+                        boxShadow: 'inset 0 0 0 1px hsl(45 100% 50% / 0.4)',
                       }}
                     />
                   )}
@@ -284,6 +330,17 @@ export function DungeonGrid({
           )}
         </div>
       </div>
+
+      {/* Add slow spin animation for portals */}
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      `}</style>
     </div>
   )
 }
